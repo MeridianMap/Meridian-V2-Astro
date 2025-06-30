@@ -33,6 +33,17 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
       const hdResult = await axios.post('/api/calculate', hdPayload);
       console.log('🟣 HD chart result:', hdResult.data);
       
+      // Log design vs birth datetime comparison
+      if (hdResult.data.properties) {
+        console.log('🟣 HD Datetime Comparison:', {
+          birthDatetime: hdResult.data.properties.birth_datetime,
+          designDatetime: hdResult.data.properties.design_datetime,
+          timeDifference: hdResult.data.properties.design_datetime ? 
+            `${Math.round((new Date(hdResult.data.properties.birth_datetime) - new Date(hdResult.data.properties.design_datetime)) / (1000 * 60 * 60 * 24))} days` : 
+            'N/A'
+        });
+      }
+      
       // Use the astrocartography data from the chart response
       if (hdResult.data.astrocartography) {
         // Tag all features with HD_DESIGN layer type
@@ -46,6 +57,13 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
             }
           }))
         };
+        
+        console.log('🟣 HD Features Sample (first 3):', taggedData.features.slice(0, 3).map(f => ({
+          planet: f.properties?.planet,
+          layer: f.properties?.layer,
+          lineType: f.properties?.line_type,
+          coordinates: f.geometry?.coordinates?.[0]?.[0] // First coordinate
+        })));
         
         // Store the data in layer manager
         layerManager.setLayerData('HD_DESIGN', taggedData);

@@ -254,6 +254,14 @@ function App() {
             features: chartData.astrocartography.features?.length || 0,
             dataKeys: Object.keys(chartData.astrocartography)
           });
+          
+          console.log('🎯 Natal Features Sample (first 3):', chartData.astrocartography.features?.slice(0, 3).map(f => ({
+            planet: f.properties?.planet,
+            layer: f.properties?.layer,
+            lineType: f.properties?.line_type,
+            coordinates: f.geometry?.coordinates?.[0]?.[0] // First coordinate
+          })));
+          
           setAstroData(chartData.astrocartography);
           // Set the data in layer manager
           layerManager.setLayerData('natal', chartData.astrocartography);
