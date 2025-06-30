@@ -10,8 +10,23 @@ export default function useChartData(timeManager) {
     setError(null);
     setLoadingStep('ephemeris');
     try {
-      console.log('🚀 Calling calculateChart with:', formData);
+      // Enhanced debugging for 400 error investigation
+      console.log('🚀 Calling calculateChart with detailed data:');
+      console.log('📋 Form data validation:', {
+        hasName: !!formData.name,
+        hasBirthDate: !!formData.birth_date,
+        hasBirthTime: !!formData.birth_time,
+        hasBirthCity: !!formData.birth_city,
+        hasBirthState: !!formData.birth_state,
+        hasBirthCountry: !!formData.birth_country,
+        hasTimezone: !!formData.timezone,
+        hasHouseSystem: !!formData.house_system,
+        formDataKeys: Object.keys(formData),
+        formDataValues: formData
+      });
+      
       const chartResult = await calculateChart({ ...formData, use_extended_planets: true });
+      
       console.log('✅ Chart result received:', {
         keys: Object.keys(chartResult),
         astrocartography_features: chartResult.astrocartography?.features?.length || 0,
@@ -27,7 +42,15 @@ export default function useChartData(timeManager) {
       setLoadingStep('done');
       return chartResult;
     } catch (e) {
-      setError(e.message || 'Failed to generate chart.');
+      console.error('❌ Chart request failed with detailed error:', {
+        message: e.message,
+        status: e.response?.status,
+        statusText: e.response?.statusText,
+        responseData: e.response?.data,
+        requestData: formData,
+        fullError: e
+      });
+      setError(`Chart calculation failed: ${e.response?.data?.error || e.response?.data || e.message || 'Unknown error'}`);
       setLoadingStep(null);
       return null;
     }

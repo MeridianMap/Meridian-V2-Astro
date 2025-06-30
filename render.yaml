@@ -3,7 +3,7 @@ services:
   - type: web
     name: meridian-v2
     env: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PYTHONUNBUFFERED
@@ -12,3 +12,5 @@ services:
         value: 'production'
       - key: PORT
         value: '5000'
+      - key: VITE_GEOAPIFY_API_KEY
+        value: 89b7ba6d03ca4cfc871fac9f5d3dade0

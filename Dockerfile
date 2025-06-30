@@ -1,5 +1,24 @@
 # syntax=docker/dockerfile:1
 
+# --- Frontend build stage ---
+FROM node:18-slim AS frontend-build
+
+WORKDIR /app
+
+# Copy frontend package.json and install dependencies
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci
+
+# Copy frontend source code
+COPY frontend ./frontend
+
+# Set build-time environment variables for Vite
+ARG VITE_GEOAPIFY_API_KEY
+ENV VITE_GEOAPIFY_API_KEY=${VITE_GEOAPIFY_API_KEY}
+
+# Build the frontend with environment variables available
+RUN cd frontend && npm run build
+
 # --- Backend build stage ---
 FROM python:3.11-slim AS backend-build
 
@@ -25,19 +44,6 @@ COPY backend ./backend
 # Copy ephemeris data if it exists
 COPY backend/ephe ./backend/ephe
 
-# --- Frontend build stage ---
-FROM node:18-slim AS frontend-build
-
-WORKDIR /app/frontend
-
-# Copy frontend package files
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --only=production
-
-# Copy frontend source and build
-COPY frontend .
-RUN rm -rf node_modules package-lock.json && npm install && npm run build
-
 # --- Final production stage ---
 FROM python:3.11-slim
 
@@ -48,26 +54,28 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy Python dependencies from build stage
+# Copy Python dependencies from backend build stage
 COPY --from=backend-build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=backend-build /usr/local/bin /usr/local/bin
 
 # Copy backend application
 COPY --from=backend-build /app/backend ./backend
 
-# Copy built frontend
+# Copy built frontend from frontend build stage
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=backend/api.py
+ENV FLASK_ENV=production
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-# Expose port (will be overridden by Render)
+# Expose port
 EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
-# Start command (using gunicorn for production)
+# Start the Flask application
 CMD ["sh", "-c", "cd backend && gunicorn api:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 60"]
