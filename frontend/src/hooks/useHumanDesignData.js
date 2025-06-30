@@ -4,12 +4,12 @@ import axios from 'axios';
 export default function useHumanDesignData(layerManager, forceMapUpdate) {
   const [loadingStep, setLoadingStep] = useState(null);
   const [error, setError] = useState(null);
-  const fetchHumanDesign = async (formData) => {
+  const fetchHumanDesign = async (formData, coordinates = null) => {
     setError(null);
     setLoadingStep('hd_calculation');
     
     try {
-      console.log('🟣 fetchHumanDesign called with:', formData);
+      console.log('🟣 fetchHumanDesign called with:', formData, 'coordinates:', coordinates);
       
       // Validate required fields
       if (!formData.birth_date || !formData.birth_time || !formData.timezone) {
@@ -17,7 +17,6 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
       }
       
       const hdPayload = {
-        name: `${formData.name || 'HD'} - Human Design`,
         birth_date: formData.birth_date,
         birth_time: formData.birth_time,
         birth_city: formData.birth_city,
@@ -26,12 +25,23 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
         timezone: formData.timezone,
         house_system: formData.house_system || 'whole_sign',
         use_extended_planets: true,
-        layer_type: 'HD_DESIGN' // Add layer type for backend tagging
+        // Include coordinates if available
+        ...(coordinates && { coordinates }),
+        filter_options: {
+          include_planets: true,
+          include_aspects: true,
+          include_fixed_stars: false, // HD excludes fixed stars
+          include_hermetic_lots: true,
+          include_parans: true,
+          include_ac_dc: true,
+          include_ic_mc: true,
+          layer_type: 'HD_DESIGN' // Critical: tells backend to use HD calculation
+        }
       };
       
-      console.log('🟣 HD API payload:', hdPayload);
-      const hdResult = await axios.post('/api/calculate', hdPayload);
-      console.log('🟣 HD chart result:', hdResult.data);
+      console.log('🟣 HD API payload for /api/astrocartography:', hdPayload);
+      const hdResult = await axios.post('/api/astrocartography', hdPayload);
+      console.log('🟣 HD astrocartography result:', hdResult.data);
       
       // Log design vs birth datetime comparison
       if (hdResult.data.properties) {
@@ -44,21 +54,12 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
         });
       }
       
-      // Use the astrocartography data from the chart response
-      if (hdResult.data.astrocartography) {
-        // Tag all features with HD_DESIGN layer type
-        const taggedData = {
-          ...hdResult.data.astrocartography,
-          features: hdResult.data.astrocartography.features.map(f => ({
-            ...f,
-            properties: {
-              ...f.properties,
-              layer: 'HD_DESIGN'
-            }
-          }))
-        };
+      // The response is already a GeoJSON FeatureCollection from /api/astrocartography
+      if (hdResult.data.features) {
+        // Features should already be tagged with HD_DESIGN layer by backend
+        const hdData = hdResult.data;
         
-        console.log('🟣 HD Features Sample (first 3):', taggedData.features.slice(0, 3).map(f => ({
+        console.log('🟣 HD Features Sample (first 3):', hdData.features.slice(0, 3).map(f => ({
           planet: f.properties?.planet,
           layer: f.properties?.layer,
           lineType: f.properties?.line_type,
@@ -66,13 +67,13 @@ export default function useHumanDesignData(layerManager, forceMapUpdate) {
         })));
         
         // Store the data in layer manager
-        layerManager.setLayerData('HD_DESIGN', taggedData);
+        layerManager.setLayerData('HD_DESIGN', hdData);
         layerManager.setLayerVisible('HD_DESIGN', true);
         
         forceMapUpdate();
-        console.log('🟣 HD data set with', taggedData.features.length, 'features');
+        console.log('🟣 HD data set with', hdData.features.length, 'features');
       } else {
-        console.log('🟣 No astrocartography data in HD response');
+        console.log('🟣 No features in HD response');
       }
       
       setLoadingStep('done');

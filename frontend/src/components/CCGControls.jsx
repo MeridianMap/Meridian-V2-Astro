@@ -154,6 +154,24 @@ function CCGControls({
                 />
                 Hermetic Lots
               </label>
+              <label
+                className={`category-toggle ${lineToggles.fixed_star ? 'active' : 'inactive'}`}
+                style={{ minWidth: '90px', fontSize: '12px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+              >                <input
+                  type="checkbox"
+                  checked={lineToggles.fixed_star}
+                  onChange={() => {
+                    setLineToggles(prev => ({ ...prev, fixed_star: !prev.fixed_star }));
+                    forceMapUpdate();
+                  }}
+                  style={{
+                    marginRight: 5,
+                    transform: 'scale(0.9)',
+                    accentColor: '#4A90E2'
+                  }}
+                />
+                Fixed Stars
+              </label>
             </div>
           </div>
 

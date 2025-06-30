@@ -143,14 +143,6 @@ function App() {
     return today.toISOString().slice(0, 10);
   });
 
-  // Re-generate CCG overlay when ccgDate changes
-  useEffect(() => {
-    if (layerManager.isLayerVisible('CCG')) {
-      handleGenerateCCG();
-    }
-    // eslint-disable-next-line
-  }, [ccgDate]);
-
   // UI toggles for JSON display
   const [showJson, setShowJson] = useState(false);
   const [showAstroJson, setShowAstroJson] = useState(false);
@@ -171,6 +163,7 @@ function App() {
     planet: true,
     mc_aspects: true,
     ac_aspects: true,
+    fixed_star: true,
     hermetic_lot: true,
     parans: true,
     ic_mc: true,
@@ -286,7 +279,7 @@ function App() {
   const handleGenerateCCG = async () => {
     try {
       setOverallProgress({ step: 'ccg_ephemeris', percentage: 25, message: 'Calculating CCG ephemeris...' });
-      await fetchCCG(formData, ccgDate);
+      await fetchCCG(formData, ccgDate, ccgLineToggles);
       setOverallProgress({ step: 'ccg_complete', percentage: 100, message: 'CCG overlay generated!' });
       forceMapUpdate(); // Ensure map updates immediately after CCG overlay is generated
       
@@ -304,7 +297,9 @@ function App() {
   const handleGenerateHD = async () => {
     try {
       setOverallProgress({ step: 'hd_calculation', percentage: 30, message: 'Calculating Human Design chart...' });
-      await fetchHumanDesign(formData);
+      // Get coordinates from natal chart response
+      const coordinates = response?.coordinates;
+      await fetchHumanDesign(formData, coordinates);
       setOverallProgress({ step: 'hd_complete', percentage: 100, message: 'Human Design overlay generated!' });
       // Ensure HD_DESIGN layer is visible after generation
       layerManager.setLayerVisible('HD_DESIGN', true);
@@ -319,6 +314,14 @@ function App() {
       console.error('Human Design generation failed:', error);
     }
   };
+
+  // Re-generate CCG overlay when ccgDate or line toggles change
+  useEffect(() => {
+    if (layerManager.isLayerVisible('CCG')) {
+      handleGenerateCCG();
+    }
+    // eslint-disable-next-line
+  }, [ccgDate, ccgLineToggles]); // Also re-generate when line toggles change
 
   // Merged/filtered data for map
   const mergedFilteredData = React.useMemo(() => {
@@ -335,6 +338,7 @@ function App() {
         const aspectTo = f.properties?.to;
         // Parans toggle
         if (cat === 'parans' && !lineToggles.parans) return false;
+        if (cat === 'fixed_star' && !lineToggles.fixed_star) return false;
         
         // Handle hermetic lots first - they have their own toggle and should NOT be affected by IC/MC toggle
         if (cat === 'hermetic_lot' || cat === 'lot' || f.properties?.body_type === 'lot') {
@@ -394,6 +398,7 @@ function App() {
         
         // CCG Feature Type Filtering
         if (cat === 'parans' && !ccgLineToggles.parans) return false;
+        if (cat === 'fixed_star' && !ccgLineToggles.fixed_star) return false;
         
         // Handle hermetic lots first - they have their own toggle and should NOT be affected by IC/MC toggle
         if (cat === 'hermetic_lot' || cat === 'lot' || f.properties?.body_type === 'lot') {

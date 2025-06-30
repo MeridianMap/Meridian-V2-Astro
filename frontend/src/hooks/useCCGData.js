@@ -5,11 +5,11 @@ export default function useCCGData(layerManager, forceMapUpdate) {
   const [loadingStep, setLoadingStep] = useState(null);
   const [error, setError] = useState(null);
 
-  const fetchCCG = async (formData, ccgDate) => {
+  const fetchCCG = async (formData, ccgDate, lineToggles = {}) => {
     setError(null);
     setLoadingStep('ephemeris');
     try {
-      console.log('🟦 fetchCCG called with:', { formData, ccgDate });
+      console.log('🟦 fetchCCG called with:', { formData, ccgDate, lineToggles });
       
       // Validate required fields
       if (!formData.birth_date || !formData.birth_time || !formData.timezone) {
@@ -17,39 +17,39 @@ export default function useCCGData(layerManager, forceMapUpdate) {
       }
       
       const ccgPayload = {
-        name: `${formData.name || 'CCG'} - CCG`,
         birth_date: ccgDate, // Use CCG date instead of birth date
         birth_time: formData.birth_time,
         birth_city: formData.birth_city,
         birth_state: formData.birth_state,
         birth_country: formData.birth_country,
         timezone: formData.timezone,
-        use_extended_planets: true,
-        layer_type: 'CCG' // Add layer type for backend tagging
+        house_system: formData.house_system || 'whole_sign',
+        use_extended_planets: true
       };
       
       console.log('🟦 CCG API payload:', ccgPayload);
-      const chartResult = await axios.post('/api/calculate', ccgPayload);
-      console.log('🟦 CCG chart result:', chartResult.data);
+      const ccgResult = await axios.post('/api/calculate', ccgPayload);
+      console.log('🟦 CCG chart result:', ccgResult.data);
       
       // Use the astrocartography data from the chart response
-      if (chartResult.data.astrocartography) {
-        // Tag all features with CCG layer type
-        const taggedData = {
-          ...chartResult.data.astrocartography,
-          features: chartResult.data.astrocartography.features.map(f => ({
+      if (ccgResult.data.astrocartography) {
+        // Tag all features with CCG layer type and store line toggles for filtering
+        const ccgData = {
+          ...ccgResult.data.astrocartography,
+          features: ccgResult.data.astrocartography.features.map(f => ({
             ...f,
             properties: {
               ...f.properties,
               layer: 'CCG'
             }
-          }))
+          })),
+          lineToggles // Store the toggles so they can be used for filtering
         };
         
-        layerManager.setLayerData('CCG', taggedData);
+        layerManager.setLayerData('CCG', ccgData);
         layerManager.setLayerVisible('CCG', true);
         forceMapUpdate();
-        console.log('🟦 CCG data set with', taggedData.features.length, 'features');
+        console.log('🟦 CCG data set with', ccgData.features.length, 'features');
       } else {
         console.log('🟦 No astrocartography data in CCG response');
       }
