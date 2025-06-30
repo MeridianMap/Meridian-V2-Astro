@@ -1,19 +1,15 @@
 services:
+  # Full-stack service (serves both API and frontend)
   - type: web
-    name: meridian-api
+    name: meridian-v2
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
+    port: 5000
     envVars:
       - key: PYTHONUNBUFFERED
         value: '1'
       - key: FLASK_ENV
         value: 'production'
-  - type: web
-    name: meridian-front
-    env: static
-    buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: frontend/dist
-    envVars:
-      - key: VITE_API_URL
-        value: 'https://meridian-api.onrender.com'
+      - key: PORT
+        value: '5000'

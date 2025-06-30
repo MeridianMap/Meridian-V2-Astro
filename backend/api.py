@@ -3,7 +3,7 @@
 Flask API for Swiss Ephemeris Calculations
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import json
 import sys
@@ -36,8 +36,26 @@ CORS(app)  # Enable CORS for all routes
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-@app.route("/")
-def index():
+# Static file serving for production deployment
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    """Serve the React frontend in production"""
+    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'dist')
+    
+    # If it's an API route, don't serve static files
+    if path.startswith('api/'):
+        return {"error": "API endpoint not found"}, 404
+    
+    # Try to serve the requested file
+    if path and os.path.exists(os.path.join(frontend_dir, path)):
+        return send_from_directory(frontend_dir, path)
+    
+    # For all other routes (React routing), serve index.html
+    return send_from_directory(frontend_dir, 'index.html')
+
+@app.route("/api")
+def api_index():
     return {"status": "Meridian API running"}, 200
 
 @app.route("/api/health")
