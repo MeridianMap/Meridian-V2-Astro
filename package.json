@@ -1,13 +1,31 @@
 {
-  "name": "frontend",
+  "name": "meridian-astrocartography-platform",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.1.0",
   "type": "module",
+  "description": "Full-stack astrocartography platform with Python backend and React frontend",
+  "keywords": ["astrocartography", "astrology", "ephemeris", "swiss-ephemeris", "react", "python", "flask"],
+  "author": "Meridian Development Team",
+  "license": "MIT",
+  "homepage": "https://meridian-astrocartography.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/meridian-map.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/meridian-map/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install:all": "cd backend && pip install -r requirements.txt && cd ../frontend && npm install",
+    "start:backend": "cd backend && python -m api",
+    "start:frontend": "cd frontend && npm run dev",
+    "test:backend": "cd backend && python -m pytest",
+    "test:frontend": "cd frontend && npm test",
+    "test:all": "npm run test:backend && npm run test:frontend"
   },
   "dependencies": {
     "axios": "^1.9.0",
@@ -27,11 +45,6 @@
     "globals": "^15.15.0",
     "vite": "^6.2.0"
   },
-  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
-  "main": "eslint.config.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "engines": {
     "node": ">=18.0.0"
   }

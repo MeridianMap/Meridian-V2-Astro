@@ -19,3 +19,42 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Third-Party Licenses
+
+This project includes code and dependencies from several open-source projects:
+
+### Swiss Ephemeris
+- **License**: Swiss Ephemeris Public License
+- **Source**: https://www.astro.com/swisseph/
+- **Usage**: Astronomical calculations and ephemeris data
+- **Note**: Swiss Ephemeris is free for non-commercial use. Commercial use requires a license.
+
+### React
+- **License**: MIT License
+- **Source**: https://github.com/facebook/react
+- **Usage**: Frontend user interface framework
+
+### Leaflet
+- **License**: BSD 2-Clause License
+- **Source**: https://github.com/Leaflet/Leaflet
+- **Usage**: Interactive mapping functionality
+
+### Flask
+- **License**: BSD 3-Clause License
+- **Source**: https://github.com/pallets/flask
+- **Usage**: Backend web framework
+
+### Vite
+- **License**: MIT License
+- **Source**: https://github.com/vitejs/vite
+- **Usage**: Frontend build tool and development server
+
+### Other Dependencies
+For a complete list of all dependencies and their licenses, see:
+- Frontend dependencies: `frontend/package.json`
+- Backend dependencies: `backend/requirements.txt`
+
+All dependencies are used in accordance with their respective licenses.
