@@ -6,6 +6,7 @@ Meridian is a comprehensive astrocartography and ephemeris calculation platform 
 ### Key Features
 - **High-Precision Calculations**: Powered by Swiss Ephemeris for astronomical accuracy
 - **Interactive Astrocartography**: Real-time planetary line mapping with geographic visualization
+- **SVG Chart Rendering**: Generate professional astrological charts for all layers (Natal, Human Design, Transit, CCG)
 - **Human Design Integration**: Complete Human Design chart calculations and gate systems
 - **Multiple House Systems**: Support for all major house systems with detailed comparisons
 - **Location Intelligence**: Advanced geocoding with timezone detection

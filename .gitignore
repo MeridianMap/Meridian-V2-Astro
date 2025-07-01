@@ -51,6 +51,10 @@ Thumbs.db
 sefstars.txt
 seasnam.txt
 
+# SVG Chart Test Files
+test_*.svg
+api_test_*.svg
+
 # Debug and sample files
 debug_*.json
 sample_response.json
