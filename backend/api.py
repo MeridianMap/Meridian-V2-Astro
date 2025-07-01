@@ -29,6 +29,7 @@ from astrocartography import calculate_astrocartography_lines_geojson
 from utils import filter_lines_near_location
 from layers.humandesign import calculate_human_design_layer
 from house_systems import get_house_system_choices, get_house_systems_by_category, get_default_house_system, get_recommended_house_systems, HOUSE_SYSTEM_INFO
+from chart_renderer import generate_chart_svg
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -377,6 +378,83 @@ def api_house_systems():
     ]
     return jsonify({"house_systems": systems})
 
+@app.route('/api/chart-svg/<layer_type>', methods=['POST'])
+def api_chart_svg(layer_type):
+    """
+    Generate SVG chart for specified layer type
+    Supported layer_types: natal, human_design, transit, ccg
+    """
+    try:
+        data = request.get_json()
+        app.logger.info(f"▶️  /api/chart-svg/{layer_type}")
+        
+        # Validate layer type
+        valid_layers = ['natal', 'human_design', 'transit', 'ccg']
+        if layer_type not in valid_layers:
+            return jsonify({"error": f"Invalid layer type. Must be one of: {valid_layers}"}), 400
+        
+        # Extract chart data - this should be the same data from /api/calculate
+        chart_data = data.get('chart_data')
+        if not chart_data:
+            return jsonify({"error": "Missing chart_data"}), 400
+        
+        # Chart configuration options
+        chart_config = data.get('chart_config', {})
+        
+        # Generate SVG based on layer type
+        svg_result = generate_chart_svg(chart_data, layer_type, chart_config)
+        
+        if "error" in svg_result:
+            app.logger.error(f"Chart SVG generation error: {svg_result['error']}")
+            return jsonify(svg_result), 400
+            
+        return jsonify(svg_result)
+        
+    except Exception as e:
+        app.logger.exception(f"Chart SVG generation failed for layer {layer_type}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/chart-config', methods=['GET'])
+def api_chart_config():
+    """
+    Get available chart configuration options
+    """
+    return jsonify({
+        "styles": ["modern", "traditional", "minimal"],
+        "sizes": {
+            "small": {"width": 400, "height": 400},
+            "medium": {"width": 600, "height": 600}, 
+            "large": {"width": 800, "height": 800}
+        },
+        "options": {
+            "show_aspects": True,
+            "show_aspect_lines": True,
+            "show_house_numbers": True,
+            "show_degrees": True,
+            "show_planet_names": True,
+            "color_scheme": "default"
+        },
+        "layer_specific": {
+            "natal": {
+                "show_natal_aspects": True,
+                "highlight_chart_ruler": False
+            },
+            "human_design": {
+                "show_gates": True,
+                "show_channels": True,
+                "show_centers": True
+            },
+            "transit": {
+                "show_transit_aspects": True,
+                "show_natal_aspects": False,
+                "highlight_active_transits": True
+            },
+            "ccg": {
+                "composite_method": "midpoint",
+                "show_synastry_aspects": True
+            }
+        }
+    })
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
