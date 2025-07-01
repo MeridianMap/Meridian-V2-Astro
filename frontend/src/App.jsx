@@ -6,6 +6,7 @@ import TimeManager from './utils/TimeManager';
 import ChartHeader from './components/ChartHeader';
 import CCGDateControls from './components/CCGDateControls';
 import ChartForm from './components/ChartForm';
+import ChartDisplay from './components/ChartDisplay';
 import NatalDisplayControls from './components/NatalDisplayControls';
 import TransitControls from './components/TransitControls';
 import CCGControls from './components/CCGControls';
@@ -29,6 +30,10 @@ function App() {
   // Initialize managers
   const [layerManager] = useState(() => new LayerManager());
   const [timeManager] = useState(() => new TimeManager());
+  
+  // Chart display state
+  const [currentChartLayer, setCurrentChartLayer] = useState('NATAL');
+  
     const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -704,6 +709,41 @@ function App() {
             response={response}
             astroData={astroData}
           />
+
+          {/* Chart Display with Layer Tabs */}
+          <div className="chart-section">
+            <div className="chart-layer-tabs">
+              <button 
+                className={`layer-tab ${currentChartLayer === 'NATAL' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('NATAL')}
+              >
+                Natal Chart
+              </button>
+              <button 
+                className={`layer-tab ${currentChartLayer === 'HD_DESIGN' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('HD_DESIGN')}
+              >
+                Human Design
+              </button>
+              <button 
+                className={`layer-tab ${currentChartLayer === 'TRANSIT' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('TRANSIT')}
+              >
+                Transit Chart
+              </button>
+              <button 
+                className={`layer-tab ${currentChartLayer === 'CCG' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('CCG')}
+              >
+                Composite Chart
+              </button>
+            </div>
+            
+            <ChartDisplay 
+              chartData={response}
+              currentLayer={currentChartLayer}
+            />
+          </div>
 
           {/* Map Container - Full Width */}
           <div className="map-container" style={{ width: '100%', marginBottom: '1rem' }}>

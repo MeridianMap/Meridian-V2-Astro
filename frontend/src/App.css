@@ -38,6 +38,60 @@
   margin-top: 1rem;
 }
 
+/* Chart Display Section */
+.chart-section {
+  margin: 1rem 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.chart-layer-tabs {
+  display: flex;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.layer-tab {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  border-bottom: 3px solid transparent;
+}
+
+.layer-tab:hover {
+  background: #e9ecef;
+  color: #333;
+}
+
+.layer-tab.active {
+  background: white;
+  color: #007bff;
+  border-bottom-color: #007bff;
+  font-weight: 600;
+}
+
+/* Responsive chart tabs */
+@media (max-width: 768px) {
+  .chart-layer-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .layer-tab {
+    flex: 1 1 50%;
+    min-width: 0;
+    font-size: 13px;
+    padding: 10px 15px;
+  }
+}
+
 /* Responsive controls - stack on smaller screens */
 @media (max-width: 900px) {
   .controls-below-map {
