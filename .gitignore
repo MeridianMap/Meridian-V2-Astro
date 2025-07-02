@@ -64,7 +64,17 @@ simple_*.py
 # Test files in root directory
 test_*.py
 test_*.js
+test_*.svg
 verify_*.py
+
+# Temporary SVG files
+*.svg
+!frontend/public/*.svg
+
+# Backend temporary files
+backend/chart_data.json
+backend/*_chart.svg
+integration_test_*.svg
 
 # Ignore swisseph doc/media images (optional, remove if you want to keep them in repo)
 swisseph doc/media/
