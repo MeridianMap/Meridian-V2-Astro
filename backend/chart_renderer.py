@@ -5,6 +5,7 @@ Generates SVG astrological charts for different layers using svgwrite
 """
 
 import svgwrite
+from svgwrite.base import Title
 import math
 import logging
 from typing import Dict, List, Tuple, Any, Optional
@@ -379,7 +380,10 @@ class AstroChartRenderer:
         occupied_positions = []
         min_distance = 15  # Minimum distance between planet symbols
         
+        logger.info(f"About to process {len(sorted_planets)} planets for tooltips")
+        
         for planet_name, planet_data in sorted_planets:
+            logger.info(f"Processing planet {planet_name} for tooltip")
             longitude = planet_data['longitude']
             original_angle = math.radians(longitude - 90)
             
@@ -422,22 +426,56 @@ class AstroChartRenderer:
             gradient.add_stop_color(offset=0, color='white')
             gradient.add_stop_color(offset=1, color=color, opacity=0.8)
             
+            # Create tooltip information
+            degree = longitude % 30
+            sign_index = int(longitude // 30)
+            sign_symbol = list(self.sign_symbols.values())[sign_index]
+            sign_name = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
+                        'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'][sign_index]
+            
+            # Format planet name for display
+            display_name = planet_name.replace('_', ' ').title()
+            
+            # Create tooltip text with planet information
+            tooltip_text = f"{display_name}\n{degree:.1f}° {sign_name}\nLongitude: {longitude:.2f}°"
+            
+            # Add additional planet data if available
+            if isinstance(planet_data, dict):
+                if 'declination' in planet_data:
+                    tooltip_text += f"\nDeclination: {planet_data['declination']:.2f}°"
+                if 'distance' in planet_data:
+                    tooltip_text += f"\nDistance: {planet_data['distance']:.2f} AU"
+                if 'speed' in planet_data:
+                    tooltip_text += f"\nSpeed: {planet_data['speed']:.2f}°/day"
+                if 'house' in planet_data:
+                    tooltip_text += f"\nHouse: {planet_data['house']}"
+            
+            # Create a group for the planet with tooltip
+            logger.info(f"Creating tooltip group for {planet_name}")
+            planet_group = dwg.g(class_=f"planet-{sanitized_name}")
+            
+            # Add SVG tooltip using Title element
+            logger.info(f"Adding tooltip: {tooltip_text}")
+            title_element = Title(tooltip_text)
+            planet_group.add(title_element)
+            
             # Planet circle with enhanced styling and better contrast
-            dwg.add(dwg.circle(center=(x, y), r=12, fill=f'url(#{gradient_id})', 
+            planet_group.add(dwg.circle(center=(x, y), r=12, fill=f'url(#{gradient_id})', 
                              stroke='#333333', stroke_width=2.5, opacity=1.0))
             
             # Draw planet symbol with high contrast
             symbol_color = '#000000' if style == 'natal' else color  # Use black for better readability
-            dwg.add(dwg.text(symbol, insert=(x, y), 
+            planet_group.add(dwg.text(symbol, insert=(x, y), 
                            text_anchor='middle', dominant_baseline='central',
                            font_size=14, font_family='Arial Unicode MS, Arial', 
                            fill=symbol_color, font_weight='bold', 
                            stroke='white', stroke_width=0.5))  # Add white outline for contrast
             
-            # Add degree marking with sign
-            degree = longitude % 30
-            sign_index = int(longitude // 30)
-            sign_symbol = list(self.sign_symbols.values())[sign_index]
+            # Add the planet group to the drawing
+            dwg.add(planet_group)
+            logger.info(f"Added planet group {sanitized_name} with tooltip to SVG")
+            
+            # Add degree marking with sign (outside the group for better positioning)
             degree_text = f"{degree:.0f}°{sign_symbol}"
             
             # Position degree text to avoid overlap
