@@ -5,6 +5,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
   const [svgContent, setSvgContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false); // Default to collapsed
   const [chartConfig, setChartConfig] = useState({
     width: 600,
     height: 600,
@@ -71,13 +72,23 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     }
   }, [chartData, chartConfig]);
 
-  // Generate chart when chartData or currentLayer changes
+  // Generate chart when chartData or currentLayer changes, but only if expanded
   useEffect(() => {
     const layerType = layerTypes[currentLayer];
-    if (layerType && chartData) {
+    if (layerType && chartData && isExpanded) {
       generateChart(layerType);
     }
-  }, [chartData, currentLayer, generateChart, layerTypes]);
+  }, [chartData, currentLayer, generateChart, layerTypes, isExpanded]);
+
+  // Generate chart when accordion is expanded for the first time
+  useEffect(() => {
+    if (isExpanded && !svgContent && !loading && chartData) {
+      const layerType = layerTypes[currentLayer];
+      if (layerType) {
+        generateChart(layerType);
+      }
+    }
+  }, [isExpanded, svgContent, loading, chartData, currentLayer, generateChart, layerTypes]);
 
   const handleConfigChange = (key, value) => {
     setChartConfig(prev => ({
@@ -119,79 +130,106 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
 
   return (
     <div className="chart-display">
-      <div className="chart-header">
-        <h3>{getLayerDisplayName(currentLayer)}</h3>
-        <div className="chart-controls">
-          <div className="chart-config">
-            <label>
-              <input
-                type="checkbox"
-                checked={chartConfig.show_aspects}
-                onChange={(e) => handleConfigChange('show_aspects', e.target.checked)}
-              />
-              Show Aspects
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={chartConfig.show_legend}
-                onChange={(e) => handleConfigChange('show_legend', e.target.checked)}
-              />
-              Show Legend
-            </label>
-            <select
-              value={`${chartConfig.width}x${chartConfig.height}`}
-              onChange={(e) => {
-                const [width, height] = e.target.value.split('x').map(Number);
-                setChartConfig(prev => ({ ...prev, width, height }));
-              }}
-            >
-              <option value="400x400">Small (400×400)</option>
-              <option value="600x600">Medium (600×600)</option>
-              <option value="800x800">Large (800×800)</option>
-            </select>
+      <div className="chart-accordion">
+        <div 
+          className={`chart-accordion-header ${isExpanded ? 'expanded' : 'collapsed'}`}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="chart-accordion-title">
+            <span className="chart-accordion-icon">
+              {isExpanded ? '📊' : '📈'}
+            </span>
+            <h3>SVG Chart Viewer - {getLayerDisplayName(currentLayer)}</h3>
+            <span className="chart-accordion-toggle">
+              {isExpanded ? '▼' : '▶'}
+            </span>
           </div>
-          <div className="chart-actions">
-            <button onClick={refreshChart} disabled={loading}>
-              {loading ? 'Generating...' : 'Refresh Chart'}
-            </button>
-            <button onClick={downloadSvg} disabled={!svgContent || loading}>
-              Download SVG
-            </button>
+          {!isExpanded && (
+            <div className="chart-accordion-preview">
+              <span className="chart-preview-text">
+                Click to view interactive {getLayerDisplayName(currentLayer)} • 
+                {svgContent ? ' Chart ready' : ' Generate chart'} • 
+                Hover planets for tooltips
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className={`chart-accordion-content ${isExpanded ? 'expanded' : 'collapsed'}`}>
+          <div className="chart-header">
+            <div className="chart-controls">
+              <div className="chart-config">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={chartConfig.show_aspects}
+                    onChange={(e) => handleConfigChange('show_aspects', e.target.checked)}
+                  />
+                  Show Aspects
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={chartConfig.show_legend}
+                    onChange={(e) => handleConfigChange('show_legend', e.target.checked)}
+                  />
+                  Show Legend
+                </label>
+                <select
+                  value={`${chartConfig.width}x${chartConfig.height}`}
+                  onChange={(e) => {
+                    const [width, height] = e.target.value.split('x').map(Number);
+                    setChartConfig(prev => ({ ...prev, width, height }));
+                  }}
+                >
+                  <option value="400x400">Small (400×400)</option>
+                  <option value="600x600">Medium (600×600)</option>
+                  <option value="800x800">Large (800×800)</option>
+                </select>
+              </div>
+              <div className="chart-actions">
+                <button onClick={refreshChart} disabled={loading}>
+                  {loading ? 'Generating...' : 'Refresh Chart'}
+                </button>
+                <button onClick={downloadSvg} disabled={!svgContent || loading}>
+                  Download SVG
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="chart-content">
+            {loading && (
+              <div className="chart-loading">
+                <div className="spinner"></div>
+                <p>Generating {getLayerDisplayName(currentLayer)}...</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="chart-error">
+                <h4>Chart Generation Error</h4>
+                <p>{error}</p>
+                <button onClick={refreshChart}>Try Again</button>
+              </div>
+            )}
+
+            {svgContent && !loading && !error && (
+              <div className="chart-svg-container">
+                <div 
+                  className="chart-svg"
+                  dangerouslySetInnerHTML={{ __html: svgContent }}
+                />
+              </div>
+            )}
+
+            {!svgContent && !loading && !error && (
+              <div className="chart-placeholder">
+                <p>Select chart data to generate {getLayerDisplayName(currentLayer)}</p>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-
-      <div className="chart-content">
-        {loading && (
-          <div className="chart-loading">
-            <div className="spinner"></div>
-            <p>Generating {getLayerDisplayName(currentLayer)}...</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="chart-error">
-            <h4>Chart Generation Error</h4>
-            <p>{error}</p>
-            <button onClick={refreshChart}>Try Again</button>
-          </div>
-        )}
-
-        {svgContent && !loading && !error && (
-          <div className="chart-svg-container">
-            <div 
-              className="chart-svg"
-              dangerouslySetInnerHTML={{ __html: svgContent }}
-            />
-          </div>
-        )}
-
-        {!svgContent && !loading && !error && (
-          <div className="chart-placeholder">
-            <p>Select chart data to generate {getLayerDisplayName(currentLayer)}</p>
-          </div>
-        )}
       </div>
     </div>
   );

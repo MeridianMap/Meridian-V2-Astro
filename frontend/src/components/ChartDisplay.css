@@ -1,8 +1,124 @@
-.chart-display {
+/* Accordion Styles */
+.chart-accordion {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin: 20px 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.chart-accordion-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.chart-accordion-header:hover {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.chart-accordion-header.collapsed {
+  border-radius: 8px;
+}
+
+.chart-accordion-header.expanded {
+  border-radius: 8px 8px 0 0;
+}
+
+.chart-accordion-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  font-weight: 600;
+}
+
+.chart-accordion-title h3 {
+  margin: 0;
+  font-size: 1.1em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-accordion-icon {
+  font-size: 1.2em;
+  transition: transform 0.3s ease;
+}
+
+.chart-accordion-toggle {
+  font-size: 1.1em;
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+
+.chart-accordion-header.expanded .chart-accordion-toggle {
+  transform: rotate(90deg);
+}
+
+.chart-accordion-preview {
+  padding: 0 20px 10px 50px;
+  font-size: 0.85em;
+  opacity: 0.9;
+  font-style: italic;
+}
+
+.chart-preview-text {
+  display: inline-block;
+  animation: fadeIn 0.3s ease;
+}
+
+.chart-accordion-content {
+  transition: all 0.4s ease;
+  overflow: hidden;
+}
+
+.chart-accordion-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+}
+
+.chart-accordion-content.expanded {
+  max-height: none;
+  opacity: 1;
+  animation: expandContent 0.4s ease;
+}
+
+@keyframes expandContent {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 2000px;
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Modify existing chart-display to work within accordion */
+.chart-accordion .chart-display {
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.chart-display {
+  background: white;
+  border-radius: 0; /* Remove border radius when inside accordion */
+  box-shadow: none; /* Remove shadow when inside accordion */
+  margin: 0; /* Remove margin when inside accordion */
   overflow: hidden;
 }
 
@@ -190,15 +306,45 @@
   }
 }
 
-/* Chart wheel specific styling */
-.chart-svg svg text {
-  user-select: none;
+/* Responsive Design for Accordion */
+@media (max-width: 768px) {
+  .chart-accordion-title h3 {
+    font-size: 1em;
+  }
+  
+  .chart-accordion-preview {
+    padding: 0 15px 10px 45px;
+    font-size: 0.8em;
+  }
+  
+  .chart-accordion-title {
+    padding: 12px 15px;
+  }
+  
+  .chart-config {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .chart-actions {
+    width: 100%;
+    display: flex;
+    gap: 10px;
+  }
+  
+  .chart-actions button {
+    flex: 1;
+  }
 }
 
-.chart-svg svg circle,
-.chart-svg svg line,
-.chart-svg svg path {
-  vector-effect: non-scaling-stroke;
+/* Enhanced hover effects */
+.chart-accordion-header:not(.expanded):hover .chart-accordion-icon {
+  transform: scale(1.1);
+}
+
+.chart-accordion-header.expanded .chart-accordion-icon {
+  transform: scale(1.05);
 }
 
 /* Print styles */
