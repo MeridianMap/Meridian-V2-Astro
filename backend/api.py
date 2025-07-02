@@ -387,6 +387,7 @@ def api_chart_svg(layer_type):
     try:
         data = request.get_json()
         app.logger.info(f"▶️  /api/chart-svg/{layer_type}")
+        print(f"DEBUG: Received data keys: {list(data.keys())}")
         
         # Validate layer type
         valid_layers = ['natal', 'human_design', 'transit', 'ccg']
@@ -397,6 +398,19 @@ def api_chart_svg(layer_type):
         chart_data = data.get('chart_data')
         if not chart_data:
             return jsonify({"error": "Missing chart_data"}), 400
+        
+        print(f"DEBUG: Chart data keys: {list(chart_data.keys())}")
+        print(f"DEBUG: Planets type: {type(chart_data.get('planets'))}")
+        if 'planets' in chart_data:
+            print(f"DEBUG: Planets length: {len(chart_data['planets'])}")
+            if len(chart_data['planets']) > 0:
+                print(f"DEBUG: First planet: {chart_data['planets'][0]}")
+        
+        print(f"DEBUG: Aspects type: {type(chart_data.get('aspects'))}")
+        if 'aspects' in chart_data:
+            print(f"DEBUG: Aspects length: {len(chart_data['aspects'])}")
+            if len(chart_data['aspects']) > 0:
+                print(f"DEBUG: First aspect: {chart_data['aspects'][0]}")
         
         # Chart configuration options
         chart_config = data.get('chart_config', {})

@@ -39,11 +39,11 @@ class AstroChartRenderer:
             180: '♎', 210: '♏', 240: '♐', 270: '♑', 300: '♒', 330: '♓'
         }
         
-        # Colors for different elements
+        # Colors for different elements with improved contrast
         self.colors = {
-            'fire': '#ff4444', 'earth': '#8b4513', 'air': '#4444ff', 'water': '#0066cc',
-            'natal': '#000000', 'transit': '#ff6600', 'composite': '#9900cc',
-            'human_design': '#006600', 'aspects': '#888888'
+            'fire': '#E74C3C', 'earth': '#8B4513', 'air': '#3498DB', 'water': '#2980B9',
+            'natal': '#2C3E50', 'transit': '#E67E22', 'composite': '#8E44AD',
+            'human_design': '#27AE60', 'aspects': '#34495E'
         }
 
     def create_chart_svg(self, chart_data: Dict, layer_type: str, config: Dict = None) -> str:
@@ -52,49 +52,87 @@ class AstroChartRenderer:
         """
         if config is None:
             config = {}
+        
+        # Determine if legend is enabled
+        show_legend = config.get('show_legend', True)
+        
+        # Adjust canvas width to accommodate legend outside the chart
+        canvas_width = self.width + (200 if show_legend else 0)
+        canvas_height = self.height
             
-        # Create SVG drawing
-        dwg = svgwrite.Drawing(size=(self.width, self.height))
+        # Create SVG drawing with adjusted size
+        dwg = svgwrite.Drawing(size=(canvas_width, canvas_height))
         
         # Add background
-        dwg.add(dwg.rect(insert=(0, 0), size=(self.width, self.height), 
+        dwg.add(dwg.rect(insert=(0, 0), size=(canvas_width, canvas_height), 
                         fill='white', stroke='none'))
         
         # Add chart title and legend
         self._add_chart_title_and_legend(dwg, chart_data, layer_type, config)
         
         # Draw based on layer type
-        if layer_type == 'natal':
-            self._draw_natal_chart(dwg, chart_data, config)
-        elif layer_type == 'human_design':
-            self._draw_human_design_chart(dwg, chart_data, config)
-        elif layer_type == 'transit':
-            self._draw_transit_chart(dwg, chart_data, config)
-        elif layer_type == 'ccg':
-            self._draw_ccg_chart(dwg, chart_data, config)
-        else:
-            raise ValueError(f"Unsupported layer type: {layer_type}")
+        try:
+            if layer_type == 'natal':
+                self._draw_natal_chart(dwg, chart_data, config)
+            elif layer_type == 'human_design':
+                self._draw_human_design_chart(dwg, chart_data, config)
+            elif layer_type == 'transit':
+                self._draw_transit_chart(dwg, chart_data, config)
+            elif layer_type == 'ccg':
+                self._draw_ccg_chart(dwg, chart_data, config)
+            else:
+                raise ValueError(f"Unsupported layer type: {layer_type}")
+        except Exception as e:
+            logger.exception(f"Error drawing {layer_type} chart")
+            raise Exception(f"Chart drawing failed for {layer_type}: {str(e)}")
             
         return dwg.tostring()
 
     def _draw_natal_chart(self, dwg, chart_data: Dict, config: Dict):
         """Draw natal chart"""
-        # Draw outer circle (zodiac wheel)
-        self._draw_zodiac_wheel(dwg)
+        try:
+            # Draw outer circle (zodiac wheel)
+            self._draw_zodiac_wheel(dwg)
+            logger.info("✅ Zodiac wheel drawn")
+        except Exception as e:
+            logger.error(f"❌ Error drawing zodiac wheel: {e}")
+            raise
         
-        # Draw house divisions
-        houses = chart_data.get('houses', {})
-        if houses and 'cusps' in houses:
-            self._draw_houses(dwg, houses['cusps'])
+        try:
+            # Draw house divisions
+            houses = chart_data.get('houses', {})
+            if houses:
+                self._draw_houses(dwg, houses)
+                logger.info("✅ Houses drawn")
+        except Exception as e:
+            logger.error(f"❌ Error drawing houses: {e}")
+            raise
         
-        # Draw planets
-        planets = chart_data.get('planets', {})
-        self._draw_planets(dwg, planets, style='natal')
+        try:
+            # Draw planets
+            planets = chart_data.get('planets', {})
+            self._draw_planets(dwg, planets, style='natal')
+            logger.info("✅ Planets drawn")
+        except Exception as e:
+            logger.error(f"❌ Error drawing planets: {e}")
+            raise
         
-        # Draw aspects if enabled
-        if config.get('show_aspects', True):
-            aspects = chart_data.get('aspects', {})
-            self._draw_aspects(dwg, aspects, planets)
+        try:
+            # Draw aspects if enabled
+            if config.get('show_aspects', True):
+                aspects = chart_data.get('aspects', {})
+                planets = chart_data.get('planets', {})
+                
+                # Ensure both aspects and planets are properly formatted for _draw_aspects
+                if aspects and planets:
+                    self._draw_aspects(dwg, aspects, planets)
+                    logger.info("✅ Aspects drawn")
+                else:
+                    logger.info("⚠️ Aspects skipped (no data)")
+        except Exception as e:
+            logger.error(f"❌ Error drawing aspects: {e}")
+            # Don't re-raise for aspects - it's not critical
+            raise
 
     def _draw_human_design_chart(self, dwg, chart_data: Dict, config: Dict):
         """Draw Human Design chart"""
@@ -112,8 +150,8 @@ class AstroChartRenderer:
             
         # Add houses
         houses = chart_data.get('houses', {})
-        if houses and 'cusps' in houses:
-            self._draw_houses(dwg, houses['cusps'])
+        if houses:
+            self._draw_houses(dwg, houses)
 
     def _draw_transit_chart(self, dwg, chart_data: Dict, config: Dict):
         """Draw transit chart (transits around natal)"""
@@ -245,8 +283,34 @@ class AstroChartRenderer:
                 dwg.add(dwg.line(start=(mark_x1, mark_y1), end=(mark_x2, mark_y2),
                                stroke='#666666', stroke_width=1, opacity=0.5))
 
-    def _draw_houses(self, dwg, house_cusps: List[float]):
+    def _draw_houses(self, dwg, house_data):
         """Draw house divisions"""
+        # Handle different house data formats
+        house_cusps = []
+        
+        if isinstance(house_data, dict):
+            if 'cusps' in house_data:
+                # Old format: {'cusps': [0, 30, 60, ...]}
+                house_cusps = house_data['cusps']
+            elif 'houses' in house_data:
+                # New format: {'houses': [{'house': 1, 'longitude': 60.0}, ...]}
+                houses_list = house_data['houses']
+                if isinstance(houses_list, list):
+                    # Extract longitudes in house order
+                    house_cusps = [None] * 12
+                    for house_info in houses_list:
+                        if isinstance(house_info, dict) and 'house' in house_info and 'longitude' in house_info:
+                            house_num = house_info['house'] - 1  # Convert to 0-based index
+                            if 0 <= house_num < 12:
+                                house_cusps[house_num] = house_info['longitude']
+        elif isinstance(house_data, list):
+            # Direct list format
+            house_cusps = house_data
+            
+        if not house_cusps:
+            logger.warning("No valid house cusps found")
+            return
+            
         for i, cusp in enumerate(house_cusps):
             if cusp is not None:
                 angle = math.radians(cusp - 90)  # Adjust for chart orientation
@@ -276,12 +340,40 @@ class AstroChartRenderer:
             
         color = self.colors.get(style, 'black')
         
+        # Handle both list and dict formats for planets data
+        if isinstance(planets, list):
+            # Convert list format to dict format
+            logger.info(f"Converting planets list to dict. List length: {len(planets)}")
+            planets_dict = {}
+            for planet in planets:
+                if isinstance(planet, dict) and 'name' in planet and 'longitude' in planet:
+                    planet_name = planet['name'].lower()
+                    planets_dict[planet_name] = planet
+                    logger.debug(f"Added planet: {planet_name}")
+                else:
+                    logger.warning(f"Invalid planet entry: {planet}")
+            planets = planets_dict
+            logger.info(f"Converted to dict with {len(planets)} planets")
+        elif not isinstance(planets, dict):
+            logger.warning(f"Invalid planets data type: {type(planets)}")
+            return
+        
+        # Ensure planets is actually a dict before proceeding
+        if not isinstance(planets, dict):
+            logger.error(f"Planets is not a dict after conversion: {type(planets)}")
+            return
+        
         # Sort planets by longitude for better positioning
-        sorted_planets = sorted(
-            [(name, data) for name, data in planets.items() 
-             if isinstance(data, dict) and 'longitude' in data],
-            key=lambda x: x[1]['longitude']
-        )
+        try:
+            sorted_planets = sorted(
+                [(name, data) for name, data in planets.items() 
+                 if isinstance(data, dict) and 'longitude' in data],
+                key=lambda x: x[1]['longitude']
+            )
+        except Exception as e:
+            logger.error(f"Error sorting planets: {e}")
+            logger.error(f"Planets type: {type(planets)}, content: {planets}")
+            return
         
         # Track occupied positions to avoid overlaps
         occupied_positions = []
@@ -323,20 +415,24 @@ class AstroChartRenderer:
             symbol = self.planet_symbols.get(planet_name.lower(), planet_name[:2].upper())
             
             # Draw planet background circle with gradient effect
-            gradient_id = f"gradient_{planet_name}_{style}"
+            # Sanitize gradient ID to remove spaces and special characters
+            sanitized_name = planet_name.replace(' ', '_').replace('-', '_').lower()
+            gradient_id = f"gradient_{sanitized_name}_{style}"
             gradient = dwg.defs.add(dwg.radialGradient(id=gradient_id, center=(0.3, 0.3)))
             gradient.add_stop_color(offset=0, color='white')
             gradient.add_stop_color(offset=1, color=color, opacity=0.8)
             
-            # Planet circle with enhanced styling
-            dwg.add(dwg.circle(center=(x, y), r=10, fill=f'url(#{gradient_id})', 
-                             stroke=color, stroke_width=2, opacity=0.9))
+            # Planet circle with enhanced styling and better contrast
+            dwg.add(dwg.circle(center=(x, y), r=12, fill=f'url(#{gradient_id})', 
+                             stroke='#333333', stroke_width=2.5, opacity=1.0))
             
-            # Draw planet symbol
+            # Draw planet symbol with high contrast
+            symbol_color = '#000000' if style == 'natal' else color  # Use black for better readability
             dwg.add(dwg.text(symbol, insert=(x, y), 
                            text_anchor='middle', dominant_baseline='central',
-                           font_size=12, font_family='Arial Unicode MS, Arial', 
-                           fill=color, font_weight='bold'))
+                           font_size=14, font_family='Arial Unicode MS, Arial', 
+                           fill=symbol_color, font_weight='bold', 
+                           stroke='white', stroke_width=0.5))  # Add white outline for contrast
             
             # Add degree marking with sign
             degree = longitude % 30
@@ -354,15 +450,37 @@ class AstroChartRenderer:
         """Draw aspect lines between planets"""
         if not aspects:
             return
-            
-        for aspect_name, aspect_list in aspects.items():
-            if isinstance(aspect_list, list):
-                for aspect in aspect_list:
+        
+        # Handle both list and dict formats for aspects
+        if isinstance(aspects, list):
+            # List format: aspects is a list of aspect objects
+            for aspect in aspects:
+                if isinstance(aspect, dict):
                     planet1 = aspect.get('planet1', '').lower()
                     planet2 = aspect.get('planet2', '').lower()
                     
-                    if planet1 in planets and planet2 in planets:
-                        self._draw_aspect_line(dwg, planets[planet1], planets[planet2], aspect)
+                    # Convert planets list to dict if needed
+                    planets_dict = planets
+                    if isinstance(planets, list):
+                        planets_dict = {p['name'].lower(): p for p in planets if isinstance(p, dict) and 'name' in p}
+                    
+                    if planet1 in planets_dict and planet2 in planets_dict:
+                        self._draw_aspect_line(dwg, planets_dict[planet1], planets_dict[planet2], aspect)
+        elif isinstance(aspects, dict):
+            # Dict format: aspects organized by type
+            for aspect_name, aspect_list in aspects.items():
+                if isinstance(aspect_list, list):
+                    for aspect in aspect_list:
+                        planet1 = aspect.get('planet1', '').lower()
+                        planet2 = aspect.get('planet2', '').lower()
+                        
+                        # Convert planets list to dict if needed
+                        planets_dict = planets
+                        if isinstance(planets, list):
+                            planets_dict = {p['name'].lower(): p for p in planets if isinstance(p, dict) and 'name' in p}
+                        
+                        if planet1 in planets_dict and planet2 in planets_dict:
+                            self._draw_aspect_line(dwg, planets_dict[planet1], planets_dict[planet2], aspect)
 
     def _draw_aspect_line(self, dwg, planet1_data: Dict, planet2_data: Dict, aspect: Dict):
         """Draw a single aspect line with enhanced styling"""
@@ -528,18 +646,19 @@ class AstroChartRenderer:
     
     def _draw_legend(self, dwg, layer_type: str, config: Dict):
         """Draw chart legend"""
-        legend_x = self.width - 150
+        # Position legend to the right of the chart, outside the main chart area
+        legend_x = self.width + 20  # Move legend outside the chart area
         legend_y = 60
         
-        # Legend background
+        # Legend background - make it slightly larger for better visibility
         dwg.add(dwg.rect(insert=(legend_x - 10, legend_y - 10), 
-                        size=(140, 200), fill='white', stroke='#cccccc',
-                        stroke_width=1, opacity=0.9, rx=5))
+                        size=(160, 220), fill='white', stroke='#666666',
+                        stroke_width=2, opacity=0.95, rx=8))
         
         # Legend title
         dwg.add(dwg.text("Legend", insert=(legend_x, legend_y + 10), 
-                       font_size=12, font_family='Arial', font_weight='bold',
-                       fill='#333333'))
+                       font_size=14, font_family='Arial', font_weight='bold',
+                       fill='#222222'))
         
         legend_items = []
         
@@ -570,16 +689,16 @@ class AstroChartRenderer:
         
         # Draw legend items
         for i, (symbol, label, color) in enumerate(legend_items):
-            y_pos = legend_y + 30 + (i * 18)
+            y_pos = legend_y + 30 + (i * 20)  # Increase spacing slightly
             
-            # Symbol
+            # Symbol with better contrast
             dwg.add(dwg.text(symbol, insert=(legend_x, y_pos), 
-                           font_size=12, font_family='Arial Unicode MS, Arial',
-                           fill=color))
+                           font_size=14, font_family='Arial Unicode MS, Arial',
+                           fill='#222222', font_weight='bold'))  # Use dark color for better visibility
             
             # Label
-            dwg.add(dwg.text(label, insert=(legend_x + 20, y_pos), 
-                           font_size=10, font_family='Arial', fill='#333333'))
+            dwg.add(dwg.text(label, insert=(legend_x + 25, y_pos), 
+                           font_size=11, font_family='Arial', fill='#333333'))
 
 
 def generate_chart_svg(chart_data: Dict, layer_type: str, config: Dict = None) -> Dict:
@@ -592,6 +711,13 @@ def generate_chart_svg(chart_data: Dict, layer_type: str, config: Dict = None) -
             
         width = config.get('width', 600)
         height = config.get('height', 600)
+        
+        # Log the chart data structure for debugging
+        logger.info(f"Generating {layer_type} chart")
+        logger.info(f"Chart data keys: {list(chart_data.keys())}")
+        logger.info(f"Planets type: {type(chart_data.get('planets'))}")
+        logger.info(f"Houses type: {type(chart_data.get('houses'))}")
+        logger.info(f"Aspects type: {type(chart_data.get('aspects'))}")
         
         renderer = AstroChartRenderer(width, height)
         svg_content = renderer.create_chart_svg(chart_data, layer_type, config)

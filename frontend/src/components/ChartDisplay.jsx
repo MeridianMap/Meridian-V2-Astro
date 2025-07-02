@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './ChartDisplay.css';
 
 const ChartDisplay = ({ chartData, currentLayer }) => {
@@ -12,14 +12,14 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     show_legend: true
   });
 
-  const layerTypes = {
+  const layerTypes = useMemo(() => ({
     'NATAL': 'natal',
     'HD_DESIGN': 'human_design', 
     'TRANSIT': 'transit',
     'CCG': 'ccg'
-  };
+  }), []);
 
-  const generateChart = async (layerType) => {
+  const generateChart = useCallback(async (layerType) => {
     if (!chartData || !chartData.planets) {
       setError('No chart data available');
       return;
@@ -29,13 +29,25 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     setError(null);
 
     try {
+      // Extract just the chart data (excluding astrocartography and other API-specific data)
+      const chartDataForSvg = {
+        planets: chartData.planets,
+        houses: chartData.houses,
+        aspects: chartData.aspects,
+        lots: chartData.lots,
+        fixed_stars: chartData.fixed_stars,
+        coordinates: chartData.coordinates,
+        utc_time: chartData.utc_time,
+        input: chartData.input
+      };
+
       const response = await fetch(`/api/chart-svg/${layerType}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chart_data: chartData,
+          chart_data: chartDataForSvg,
           chart_config: chartConfig
         })
       });
@@ -57,7 +69,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [chartData, chartConfig]);
 
   // Generate chart when chartData or currentLayer changes
   useEffect(() => {
@@ -65,7 +77,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     if (layerType && chartData) {
       generateChart(layerType);
     }
-  }, [chartData, currentLayer]);
+  }, [chartData, currentLayer, generateChart, layerTypes]);
 
   const handleConfigChange = (key, value) => {
     setChartConfig(prev => ({
