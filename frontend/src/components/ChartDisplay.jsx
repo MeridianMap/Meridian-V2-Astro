@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import PlanetSummaryTable from './PlanetSummaryTable';
+import astroDefinitions from '../astro_definitions.json';
 import './ChartDisplay.css';
 
 const ChartDisplay = ({ chartData, currentLayer }) => {
@@ -6,6 +8,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false); // Default to collapsed
+  const [layerData, setLayerData] = useState({}); // Cache data for each layer
   const [chartConfig, setChartConfig] = useState({
     width: 600,
     height: 600,
@@ -13,33 +16,150 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     show_legend: true
   });
 
+  const summaryData = useMemo(() => {
+    if (!layerData[currentLayer] || !layerData[currentLayer].planets) {
+      return [];
+    }
+    return layerData[currentLayer].planets.map(p => ({
+      planet: p.name,
+      sign: p.sign,
+      house: p.house,
+      houseDefinition: astroDefinitions.houses[p.house] || ''
+    }));
+  }, [layerData, currentLayer]);
+
   const layerTypes = useMemo(() => ({
     'NATAL': 'natal',
-    'HD_DESIGN': 'human_design', 
-    'TRANSIT': 'transit',
-    'CCG': 'ccg'
+    'TRANSIT': 'transit'
   }), []);
 
-  const generateChart = useCallback(async (layerType) => {
-    if (!chartData || !chartData.planets) {
-      setError('No chart data available');
-      return;
+  const layerEndpoints = useMemo(() => ({
+    'NATAL': '/api/calculate',
+    'TRANSIT': '/api/calculate'  // Transit charts use the same base data as natal
+  }), []);
+
+  const fetchLayerData = useCallback(async (layerType, layerKey) => {
+    if (!chartData || !chartData.input) {
+      setError('No base chart data available');
+      return null;
     }
 
+    try {
+      const endpoint = layerEndpoints[layerKey];
+      
+      // For natal layer, use existing chartData
+      if (layerKey === 'NATAL') {
+        return chartData;
+      }
+
+      // For transit layer, calculate current planetary positions
+      if (layerKey === 'TRANSIT') {
+        const now = new Date();
+        const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+        
+        const requestData = {
+          birth_date: currentDate,  // Use current date instead of birth date
+          birth_time: currentTime,  // Use current time instead of birth time
+          birth_city: chartData.input.birth_city,
+          birth_state: chartData.input.birth_state,
+          birth_country: chartData.input.birth_country,
+          timezone: chartData.input.timezone,
+          coordinates: chartData.coordinates,
+          house_system: chartData.input.house_system || 'whole_sign',
+          progressed_for: null,  // This tells the backend to calculate transit positions
+          progression_method: null
+        };
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        return result;
+      }
+
+      // For other layers, fetch from specific endpoints
+      const requestData = {
+        birth_date: chartData.input.birth_date,
+        birth_time: chartData.input.birth_time,
+        birth_city: chartData.input.birth_city,
+        birth_state: chartData.input.birth_state,
+        birth_country: chartData.input.birth_country,
+        timezone: chartData.input.timezone,
+        coordinates: chartData.coordinates,
+        house_system: chartData.input.house_system || 'whole_sign'
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      return result;
+    } catch (err) {
+      console.error(`Error fetching ${layerKey} data:`, err);
+      throw err;
+    }
+  }, [chartData, layerEndpoints]);
+
+  const generateChart = useCallback(async (layerType, layerKey) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Extract just the chart data (excluding astrocartography and other API-specific data)
+      // Check if we already have data for this layer
+      let currentLayerData = layerData[layerKey];
+      
+      if (!currentLayerData) {
+        // Fetch data for this layer
+        currentLayerData = await fetchLayerData(layerType, layerKey);
+        if (!currentLayerData) return;
+        
+        // Cache the data
+        setLayerData(prev => ({
+          ...prev,
+          [layerKey]: currentLayerData
+        }));
+      }
+
+      // Extract chart data for SVG generation
       const chartDataForSvg = {
-        planets: chartData.planets,
-        houses: chartData.houses,
-        aspects: chartData.aspects,
-        lots: chartData.lots,
-        fixed_stars: chartData.fixed_stars,
-        coordinates: chartData.coordinates,
-        utc_time: chartData.utc_time,
-        input: chartData.input
+        planets: currentLayerData.planets,
+        houses: currentLayerData.houses,
+        aspects: currentLayerData.aspects,
+        lots: currentLayerData.lots,
+        fixed_stars: currentLayerData.fixed_stars,
+        coordinates: currentLayerData.coordinates,
+        utc_time: currentLayerData.utc_time,
+        input: currentLayerData.input,
+        chart_type: currentLayerData.chart_type
       };
 
       const response = await fetch(`/api/chart-svg/${layerType}`, {
@@ -49,7 +169,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
         },
         body: JSON.stringify({
           chart_data: chartDataForSvg,
-          chart_config: chartConfig
+          chart_config: { ...chartConfig, show_legend: false } // Always disable SVG legend
         })
       });
 
@@ -70,13 +190,13 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     } finally {
       setLoading(false);
     }
-  }, [chartData, chartConfig]);
+  }, [layerData, chartConfig, fetchLayerData]);
 
   // Generate chart when chartData or currentLayer changes, but only if expanded
   useEffect(() => {
     const layerType = layerTypes[currentLayer];
     if (layerType && chartData && isExpanded) {
-      generateChart(layerType);
+      generateChart(layerType, currentLayer);
     }
   }, [chartData, currentLayer, generateChart, layerTypes, isExpanded]);
 
@@ -85,10 +205,16 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     if (isExpanded && !svgContent && !loading && chartData) {
       const layerType = layerTypes[currentLayer];
       if (layerType) {
-        generateChart(layerType);
+        generateChart(layerType, currentLayer);
       }
     }
   }, [isExpanded, svgContent, loading, chartData, currentLayer, generateChart, layerTypes]);
+
+  // Clear SVG content when layer changes to force regeneration
+  useEffect(() => {
+    setSvgContent('');
+    setError(null);
+  }, [currentLayer]);
 
   const handleConfigChange = (key, value) => {
     setChartConfig(prev => ({
@@ -100,7 +226,17 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
   const refreshChart = () => {
     const layerType = layerTypes[currentLayer];
     if (layerType) {
-      generateChart(layerType);
+      // Clear cached data for this layer to force refresh
+      setLayerData(prev => {
+        const updated = { ...prev };
+        delete updated[currentLayer];
+        return updated;
+      });
+      setSvgContent('');
+      // Add a small delay to ensure state is cleared
+      setTimeout(() => {
+        generateChart(layerType, currentLayer);
+      }, 100);
     }
   };
 
@@ -121,9 +257,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
   const getLayerDisplayName = (layer) => {
     const names = {
       'NATAL': 'Natal Chart',
-      'HD_DESIGN': 'Human Design Chart',
-      'TRANSIT': 'Transit Chart', 
-      'CCG': 'Composite Chart'
+      'TRANSIT': 'Transit Chart'
     };
     return names[layer] || layer;
   };
@@ -167,65 +301,49 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
                   />
                   Show Aspects
                 </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={chartConfig.show_legend}
-                    onChange={(e) => handleConfigChange('show_legend', e.target.checked)}
-                  />
-                  Show Legend
-                </label>
                 <select
-                  value={`${chartConfig.width}x${chartConfig.height}`}
-                  onChange={(e) => {
-                    const [width, height] = e.target.value.split('x').map(Number);
-                    setChartConfig(prev => ({ ...prev, width, height }));
-                  }}
+                  value={chartConfig.width}
+                  onChange={(e) => handleConfigChange('width', Number(e.target.value))}
                 >
-                  <option value="400x400">Small (400×400)</option>
-                  <option value="600x600">Medium (600×600)</option>
-                  <option value="800x800">Large (800×800)</option>
+                  <option value={400}>Small (400)</option>
+                  <option value={600}>Medium (600)</option>
+                  <option value={800}>Large (800)</option>
                 </select>
               </div>
               <div className="chart-actions">
-                <button onClick={refreshChart} disabled={loading}>
-                  {loading ? 'Generating...' : 'Refresh Chart'}
-                </button>
-                <button onClick={downloadSvg} disabled={!svgContent || loading}>
-                  Download SVG
-                </button>
+                <button onClick={refreshChart} disabled={loading}>Refresh Chart</button>
+                <button onClick={downloadSvg} disabled={!svgContent || loading}>Download SVG</button>
               </div>
             </div>
           </div>
+          <div className="chart-content-area">
+            <div className="chart-content">
+              {loading && (
+                <div className="chart-loading">
+                  <div className="spinner"></div>
+                  <p>Generating {getLayerDisplayName(currentLayer)}...</p>
+                </div>
+              )}
 
-          <div className="chart-content">
-            {loading && (
-              <div className="chart-loading">
-                <div className="spinner"></div>
-                <p>Generating {getLayerDisplayName(currentLayer)}...</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="chart-error">
-                <h4>Chart Generation Error</h4>
-                <p>{error}</p>
-                <button onClick={refreshChart}>Try Again</button>
-              </div>
-            )}
-
-            {svgContent && !loading && !error && (
-              <div className="chart-svg-container">
-                <div 
-                  className="chart-svg"
-                  dangerouslySetInnerHTML={{ __html: svgContent }}
-                />
-              </div>
-            )}
-
-            {!svgContent && !loading && !error && (
-              <div className="chart-placeholder">
-                <p>Select chart data to generate {getLayerDisplayName(currentLayer)}</p>
+              {error && (
+                <div className="chart-error">
+                  <h4>Chart Generation Error</h4>
+                  <p>{error}</p>
+                  <button onClick={refreshChart}>Try Again</button>
+                </div>
+              )}
+              {!loading && !error && svgContent && (
+                <div className="chart-svg-container" dangerouslySetInnerHTML={{ __html: svgContent }} />
+              )}
+              {!loading && !error && !svgContent && (
+                <div className="chart-placeholder">
+                  <p>Select a chart type and options to begin.</p>
+                </div>
+              )}
+            </div>
+            {chartConfig.show_legend && summaryData.length > 0 && (
+              <div className="planet-summary-container">
+                <PlanetSummaryTable summaryData={summaryData} />
               </div>
             )}
           </div>

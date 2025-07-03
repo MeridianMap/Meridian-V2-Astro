@@ -719,24 +719,28 @@ function App() {
               >
                 Natal Chart
               </button>
+              {/*
               <button 
-                className={`layer-tab ${currentChartLayer === 'HD_DESIGN' ? 'active' : ''}`}
-                onClick={() => setCurrentChartLayer('HD_DESIGN')}
+                className={`layer-tab ${currentChartLayer === 'HUMAN_DESIGN' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('HUMAN_DESIGN')}
               >
                 Human Design
               </button>
+              */}
               <button 
                 className={`layer-tab ${currentChartLayer === 'TRANSIT' ? 'active' : ''}`}
                 onClick={() => setCurrentChartLayer('TRANSIT')}
               >
                 Transit Chart
               </button>
+              {/*
               <button 
-                className={`layer-tab ${currentChartLayer === 'CCG' ? 'active' : ''}`}
-                onClick={() => setCurrentChartLayer('CCG')}
+                className={`layer-tab ${currentChartLayer === 'COMPOSITE' ? 'active' : ''}`}
+                onClick={() => setCurrentChartLayer('COMPOSITE')}
               >
                 Composite Chart
               </button>
+              */}
             </div>
             
             <ChartDisplay 

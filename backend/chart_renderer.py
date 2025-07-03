@@ -325,14 +325,33 @@ class AstroChartRenderer:
                 dwg.add(dwg.line(start=(x1, y1), end=(x2, y2), 
                                stroke='blue', stroke_width=1.5))
                 
-                # House numbers
-                text_radius = self.inner_radius - 45
-                text_x = self.center_x + text_radius * math.cos(angle)
-                text_y = self.center_y + text_radius * math.sin(angle)
-                
-                dwg.add(dwg.text(str(i + 1), insert=(text_x, text_y), 
-                               text_anchor='middle', dominant_baseline='central',
-                               font_size=12, font_family='Arial', fill='blue'))
+                # House numbers - positioned in the middle of each house segment
+                # Calculate the middle angle of the house segment
+                next_cusp = house_cusps[(i + 1) % 12] if i < 11 else house_cusps[0]
+                if next_cusp is not None:
+                    # Handle the wrap-around case (last house to first house)
+                    if i == 11:  # 12th house
+                        if cusp > next_cusp:
+                            next_cusp += 360
+                    elif next_cusp < cusp:
+                        next_cusp += 360
+                    
+                    # Calculate middle angle of the house segment
+                    mid_angle = (cusp + next_cusp) / 2
+                    if mid_angle >= 360:
+                        mid_angle -= 360
+                    
+                    # Position in the outer house ring for better visibility
+                    text_radius = self.inner_radius + 20  # Move to outer house segment
+                    text_angle = math.radians(mid_angle - 90)  # Adjust for chart orientation
+                    text_x = self.center_x + text_radius * math.cos(text_angle)
+                    text_y = self.center_y + text_radius * math.sin(text_angle)
+                    
+                    # Larger, more legible house numbers
+                    dwg.add(dwg.text(str(i + 1), insert=(text_x, text_y), 
+                                   text_anchor='middle', dominant_baseline='central',
+                                   font_size=16, font_weight='bold', font_family='Arial', 
+                                   fill='#333333', stroke='white', stroke_width=0.5))
 
     def _draw_planets(self, dwg, planets: Dict, style: str = 'natal', radius: float = None):
         """Draw planets on the chart with collision detection"""
