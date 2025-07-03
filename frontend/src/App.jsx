@@ -20,8 +20,46 @@ import useHumanDesignData from './hooks/useHumanDesignData';
 
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY
 const TIMEZONEDB_API_KEY = 'YHIFBIVJIA14'
+const ACCESS_PASSWORD = import.meta.env.VITE_ACCESS_PASSWORD || 'explore'
+const REQUIRE_AUTH = import.meta.env.VITE_REQUIRE_AUTH === 'true'
 
 function App() {
+  // Authentication state (always at top level)
+  const [isAuthenticated, setIsAuthenticated] = useState(!REQUIRE_AUTH);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Check for stored auth on component mount
+  useEffect(() => {
+    if (REQUIRE_AUTH) {
+      const storedAuth = sessionStorage.getItem('meridian_auth');
+      if (storedAuth === 'authenticated') {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  // Password submit handler
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === ACCESS_PASSWORD) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('meridian_auth', 'authenticated');
+      setAuthError('');
+    } else {
+      setAuthError('Incorrect password. Please try again.');
+      setPasswordInput('');
+    }
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    sessionStorage.removeItem('meridian_auth');
+    setIsAuthenticated(false);
+    setPasswordInput('');
+    setAuthError('');
+  };
+
   // Force re-render trigger for map updates
   const [mapUpdateTrigger, setMapUpdateTrigger] = useState(0);
   const forceMapUpdate = React.useCallback(() => {
@@ -618,8 +656,115 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [astroData, lineToggles, bodyToggles, ccgLineToggles, ccgBodyToggles, hdLineToggles, hdBodyToggles, transitLineToggles, transitBodyToggles, layerManager, mapUpdateTrigger]);
 
+  // Show password prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="auth-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '2rem',
+          borderRadius: '10px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+          maxWidth: '400px',
+          width: '100%'
+        }}>
+          <h1 style={{ 
+            textAlign: 'center', 
+            marginBottom: '1.5rem', 
+            color: '#333',
+            fontSize: '2rem'
+          }}>
+            🌟 Meridian V2.1
+          </h1>
+          <p style={{ 
+            textAlign: 'center', 
+            color: '#666', 
+            marginBottom: '1.5rem',
+            fontSize: '1rem'
+          }}>
+            Enter the access password to continue
+          </p>
+          <form onSubmit={handlePasswordSubmit}>
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              placeholder="Enter password"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '5px',
+                fontSize: '16px',
+                marginBottom: '1rem',
+                boxSizing: 'border-box'
+              }}
+              autoFocus
+            />
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '16px',
+                cursor: 'pointer',
+                transition: 'background 0.3s'
+              }}
+              onMouseOver={(e) => e.target.style.background = '#5a6fd8'}
+              onMouseOut={(e) => e.target.style.background = '#667eea'}
+            >
+              Access Application
+            </button>
+          </form>
+          {authError && (
+            <p style={{ 
+              color: '#e74c3c', 
+              textAlign: 'center', 
+              marginTop: '1rem',
+              fontSize: '0.9rem'
+            }}>
+              {authError}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
+      {/* Logout button for authenticated users */}
+      {REQUIRE_AUTH && (
+        <div style={{ textAlign: 'right', padding: '0.5rem 1rem', borderBottom: '1px solid #eee' }}>
+          <button 
+            onClick={handleLogout}
+            style={{
+              padding: '6px 12px',
+              background: '#e74c3c',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      )}
+      
       {/* JSON buttons at the top, only show after chart is generated */}
       {(response || astroData) && (
         <div className="json-buttons">
