@@ -206,16 +206,69 @@ class ChartRenderer:
     
     def _draw_planets(self, planets, radius):
         """Draws planets on the chart."""
-        for planet in planets:
+        logger.info(f"Drawing {len(planets)} planets at radius {radius}")
+        
+        if not planets:
+            logger.warning("No planets data provided to _draw_planets")
+            return
+            
+        for i, planet in enumerate(planets):
+            logger.debug(f"Drawing planet {i}: {planet}")
+            
+            # Validate planet data
+            if 'longitude' not in planet:
+                logger.error(f"Planet missing longitude: {planet}")
+                continue
+            if 'name' not in planet:
+                logger.error(f"Planet missing name: {planet}")
+                continue
+                
             angle = self._get_planet_angle(planet['longitude'])
             x = self.center_x + radius * math.cos(math.radians(angle))
             y = self.center_y + radius * math.sin(math.radians(angle))
             
+            logger.debug(f"Planet {planet['name']}: longitude={planet['longitude']}, angle={angle}, position=({x:.1f}, {y:.1f})")
+            
             fill_color = '#4a4a4a' # Standard color for all planets in a single wheel
 
-            symbol = PLANET_SYMBOLS.get(planet['name'], '?')
-            self.dwg.add(self.dwg.text(symbol, insert=(x, y), text_anchor="middle", alignment_baseline="middle", font_size="14", fill=fill_color))
+            symbol = PLANET_SYMBOLS.get(planet['name'], planet['name'][:3].upper())  # Use first 3 letters as fallback
+            logger.debug(f"Planet {planet['name']} symbol: '{symbol}'")
             
+            # Add a small circle as position marker
+            circle = self.dwg.circle(
+                center=(x, y),
+                r=8,
+                fill='none',
+                stroke='red',
+                stroke_width=1
+            )
+            self.dwg.add(circle)
+            
+            # Add planet symbol with better visibility
+            planet_text = self.dwg.text(
+                symbol, 
+                insert=(x, y), 
+                text_anchor="middle", 
+                alignment_baseline="middle", 
+                font_size="16",  # Increased font size
+                fill=fill_color,
+                font_family="Arial, sans-serif"  # Explicit font family
+            )
+            self.dwg.add(planet_text)
+            
+            # Also add planet name as backup
+            name_text = self.dwg.text(
+                planet['name'][:3], 
+                insert=(x + 20, y), 
+                text_anchor="middle", 
+                alignment_baseline="middle", 
+                font_size="10",
+                fill="#666",
+                font_family="Arial, sans-serif"
+            )
+            self.dwg.add(name_text)
+            
+            # Add degree/minute labels
             degrees = int(planet['longitude'] % 30)
             minutes = int((planet['longitude'] % 1) * 60)
             
