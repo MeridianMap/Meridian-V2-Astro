@@ -3,6 +3,20 @@ import PlanetSummaryTable from './PlanetSummaryTable';
 import astroDefinitions from '../astro_definitions.json';
 import './ChartDisplay.css';
 
+// Constants for tooltip functionality
+const PLANET_SYMBOLS = {
+  '☉': 'Sun', '☽': 'Moon', '☿': 'Mercury', '♀': 'Venus', '♂': 'Mars',
+  '♃': 'Jupiter', '♄': 'Saturn', '♅': 'Uranus', '♆': 'Neptune', '♇': 'Pluto',
+  '☊': 'North Node', '☋': 'South Node', '⚷': 'Chiron'
+};
+
+const ANGLE_NAMES = {
+  'AC': 'Ascendant',
+  'MC': 'Midheaven',
+  'DC': 'Descendant', 
+  'IC': 'Imum Coeli'
+};
+
 const ChartDisplay = ({ chartData, currentLayer }) => {
   const [svgContent, setSvgContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -220,6 +234,150 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     setSvgContent('');
     setError(null);
   }, [currentLayer]);
+
+  // Helper functions for tooltips
+  const hideCustomTooltip = useCallback(() => {
+    const tooltip = document.querySelector('.chart-tooltip');
+    if (tooltip) {
+      tooltip.remove();
+    }
+  }, []);
+
+  const showCustomTooltip = useCallback((event, text) => {
+    // Remove any existing tooltip
+    hideCustomTooltip();
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'chart-tooltip';
+    tooltip.textContent = text;
+    tooltip.style.cssText = `
+      position: fixed;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      white-space: pre-line;
+      z-index: 10000;
+      pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      max-width: 200px;
+      left: ${event.clientX + 15}px;
+      top: ${event.clientY - 10}px;
+    `;
+    document.body.appendChild(tooltip);
+    
+    // Adjust position if tooltip would go off screen
+    const rect = tooltip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      tooltip.style.left = `${event.clientX - rect.width - 15}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+    }
+  }, [hideCustomTooltip]);
+
+  const updateTooltipPosition = useCallback((event) => {
+    const tooltip = document.querySelector('.chart-tooltip');
+    if (tooltip) {
+      tooltip.style.left = `${event.clientX + 15}px`;
+      tooltip.style.top = `${event.clientY - 10}px`;
+      
+      // Adjust position if tooltip would go off screen
+      const rect = tooltip.getBoundingClientRect();
+      if (rect.right > window.innerWidth) {
+        tooltip.style.left = `${event.clientX - rect.width - 15}px`;
+      }
+      if (rect.bottom > window.innerHeight) {
+        tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+      }
+    }
+  }, []);
+
+  // Add hover tooltip functionality
+  useEffect(() => {
+    if (svgContent && isExpanded) {
+      const svgContainer = document.querySelector('.chart-svg-container svg');
+      if (svgContainer) {
+        const groups = svgContainer.querySelectorAll('g');
+        
+        groups.forEach((group) => {
+          let tooltipText = '';
+          
+          // Check for planet symbols
+          const symbolText = group.querySelector('text');
+          if (symbolText) {
+            const symbol = symbolText.textContent.trim();
+            
+            // Check if it's a planet symbol
+            if (PLANET_SYMBOLS[symbol]) {
+              tooltipText = PLANET_SYMBOLS[symbol];
+              
+              // Try to get additional info from nearby text elements
+              const allTexts = group.querySelectorAll('text');
+              if (allTexts.length > 1) {
+                // Look for degree information
+                for (let i = 1; i < allTexts.length; i++) {
+                  const text = allTexts[i].textContent.trim();
+                  if (text.includes('°')) {
+                    tooltipText += `\n${text}`;
+                  } else if (text.length > 2 && !PLANET_SYMBOLS[text]) {
+                    // Likely a sign name
+                    tooltipText += `\nin ${text}`;
+                  }
+                }
+              }
+            }
+            
+            // Check if it's an angle marker
+            else if (ANGLE_NAMES[symbol]) {
+              tooltipText = ANGLE_NAMES[symbol];
+              
+              // Look for degree information in nearby text
+              const allTexts = group.querySelectorAll('text');
+              for (let i = 1; i < allTexts.length; i++) {
+                const text = allTexts[i].textContent.trim();
+                if (text.includes('°')) {
+                  tooltipText += `\n${text}`;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Check for house numbers (circles with numbers)
+          const circle = group.querySelector('circle');
+          if (circle && symbolText && !tooltipText) {
+            const text = symbolText.textContent.trim();
+            if (/^\d+$/.test(text)) {
+              tooltipText = `House ${text}`;
+            }
+          }
+          
+          if (tooltipText) {
+            group.style.cursor = 'pointer';
+            
+            // Add mouse event listeners
+            group.addEventListener('mouseenter', (e) => {
+              showCustomTooltip(e, tooltipText);
+            });
+            
+            group.addEventListener('mouseleave', hideCustomTooltip);
+            
+            group.addEventListener('mousemove', (e) => {
+              updateTooltipPosition(e);
+            });
+          }
+        });
+      }
+    }
+    
+    // Cleanup function to remove event listeners
+    return () => {
+      hideCustomTooltip();
+    };
+  }, [svgContent, isExpanded, showCustomTooltip, hideCustomTooltip, updateTooltipPosition]);
 
   const handleConfigChange = (key, value) => {
     setChartConfig(prev => ({

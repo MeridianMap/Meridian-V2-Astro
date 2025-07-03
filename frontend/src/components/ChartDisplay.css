@@ -394,3 +394,35 @@
     box-shadow: none;
   }
 }
+
+/* Hover tooltip styles */
+.chart-svg-container svg g:hover {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+/* Ensure tooltips appear above everything */
+.chart-tooltip {
+  position: fixed !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-family: Arial, sans-serif !important;
+  white-space: pre-line !important;
+  z-index: 10000 !important;
+  pointer-events: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  max-width: 200px !important;
+}
+
+/* Make chart elements more interactive */
+.chart-svg-container svg g[style*="cursor: pointer"] {
+  transition: all 0.2s ease;
+}
+
+.chart-svg-container svg g[style*="cursor: pointer"]:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
