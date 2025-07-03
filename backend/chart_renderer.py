@@ -39,7 +39,7 @@ ASPECT_STYLES = {
 
 def generate_chart_svg(chart_data, chart_config):
     """
-    Generates the SVG for a single-wheel chart (natal, transit, etc.).
+    Generates a clean, beautiful SVG for a single-wheel chart (natal, transit, etc.).
     """
     try:
         logger.info(f"Starting chart generation with config: {chart_config}")
@@ -47,44 +47,55 @@ def generate_chart_svg(chart_data, chart_config):
         width = chart_config.get('width', 600)
         height = chart_config.get('height', 600)
         center_x, center_y = width / 2, height / 2
-        outer_radius = min(center_x, center_y) - 20
-        zodiac_band_width = 50
-        house_cusp_radius = outer_radius - zodiac_band_width
-        inner_radius = house_cusp_radius - 30
-        planet_radius = inner_radius - 30
+        
+        # Simplified radius calculations for cleaner layout
+        outer_radius = min(center_x, center_y) - 30
+        zodiac_radius = outer_radius - 40
+        house_radius = zodiac_radius - 40
+        planet_radius = house_radius - 50
+        inner_radius = planet_radius - 40
 
         # Debug logging
         logger.info(f"Chart data summary - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
 
-        # Create SVG drawing without stringio parameter to avoid deployment issues
+        # Create SVG drawing with clean white background
         dwg = svgwrite.Drawing(size=(width, height))
-        dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), fill='white'))
+        dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), fill='#fafafa'))
 
         renderer = ChartRenderer(dwg, width, height, chart_config, chart_data)
         
-        # Render all components for a single-wheel chart
+        # Render components in order for clean layering
+        logger.debug("Drawing clean chart base...")
+        renderer._draw_clean_base(outer_radius, zodiac_radius, house_radius, inner_radius)
+        
         logger.debug("Drawing zodiac signs...")
-        renderer._draw_zodiac_signs(outer_radius, zodiac_band_width)
-        logger.debug("Drawing house cusps...")
-        renderer._draw_house_cusps(house_cusp_radius)
-        logger.debug("Drawing house segments...")
-        renderer._draw_house_segments(outer_radius, inner_radius)
-        logger.debug("Drawing houses...")
-        renderer._draw_houses(inner_radius, house_cusp_radius)
+        renderer._draw_clean_zodiac(zodiac_radius)
+        
+        logger.debug("Drawing house numbers...")
+        renderer._draw_clean_houses(house_radius)
+        
         logger.debug("Drawing planets...")
-        renderer._draw_planets(chart_data.get('planets', []), planet_radius)
+        renderer._draw_clean_planets(chart_data.get('planets', []), planet_radius)
         
         if chart_config.get('show_aspects', True):
             logger.debug("Drawing aspects...")
-            renderer._draw_aspects(chart_data.get('aspects', []), planet_radius)
+            renderer._draw_clean_aspects(chart_data.get('aspects', []), planet_radius)
 
-        # Add a title based on the chart type and data
+        # Add a clean title
         layer_type = chart_config.get('layer_type', 'chart')
         title_text = f"{layer_type.title()} Chart"
         if chart_data.get('input', {}).get('birth_date'):
             title_text += f" - {chart_data['input']['birth_date']}"
         
-        dwg.add(dwg.text(title_text, insert=(center_x, 20), text_anchor='middle', font_size=16, fill='#333'))
+        dwg.add(dwg.text(
+            title_text, 
+            insert=(center_x, 25), 
+            text_anchor='middle', 
+            font_size=18, 
+            fill='#2c3e50',
+            font_family="Arial, sans-serif",
+            font_weight="bold"
+        ))
 
         logger.info("Chart generation completed successfully")
         return dwg.tostring()
@@ -328,3 +339,230 @@ class ChartRenderer:
     def _get_planet_angle(self, longitude):
         """Converts a planet's longitude to an angle for positioning."""
         return longitude - 90  # Adjusting for chart orientation
+
+    def _draw_clean_base(self, outer_radius, zodiac_radius, house_radius, inner_radius):
+        """Draw clean base circles and structure."""
+        # Outer circle (chart boundary)
+        self.dwg.add(self.dwg.circle(
+            center=(self.center_x, self.center_y),
+            r=outer_radius,
+            fill='none',
+            stroke='#34495e',
+            stroke_width=2
+        ))
+        
+        # Zodiac circle
+        self.dwg.add(self.dwg.circle(
+            center=(self.center_x, self.center_y),
+            r=zodiac_radius,
+            fill='none',
+            stroke='#7f8c8d',
+            stroke_width=1
+        ))
+        
+        # House circle
+        self.dwg.add(self.dwg.circle(
+            center=(self.center_x, self.center_y),
+            r=house_radius,
+            fill='none',
+            stroke='#bdc3c7',
+            stroke_width=1
+        ))
+        
+        # Inner circle
+        self.dwg.add(self.dwg.circle(
+            center=(self.center_x, self.center_y),
+            r=inner_radius,
+            fill='none',
+            stroke='#ecf0f1',
+            stroke_width=1
+        ))
+
+    def _draw_clean_zodiac(self, zodiac_radius):
+        """Draw clean zodiac signs around the chart."""
+        zodiac_signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                       'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+        
+        for i, sign in enumerate(zodiac_signs):
+            angle = i * 30 - 90  # Start from top (Aries)
+            text_radius = zodiac_radius + 20
+            
+            x = self.center_x + text_radius * math.cos(math.radians(angle + 15))
+            y = self.center_y + text_radius * math.sin(math.radians(angle + 15))
+            
+            # Draw zodiac sign name
+            self.dwg.add(self.dwg.text(
+                sign,
+                insert=(x, y),
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size="12",
+                fill='#34495e',
+                font_family="Arial, sans-serif",
+                font_weight="500"
+            ))
+            
+            # Draw zodiac division lines
+            line_start_x = self.center_x + zodiac_radius * math.cos(math.radians(angle))
+            line_start_y = self.center_y + zodiac_radius * math.sin(math.radians(angle))
+            line_end_x = self.center_x + (zodiac_radius + 15) * math.cos(math.radians(angle))
+            line_end_y = self.center_y + (zodiac_radius + 15) * math.sin(math.radians(angle))
+            
+            self.dwg.add(self.dwg.line(
+                start=(line_start_x, line_start_y),
+                end=(line_end_x, line_end_y),
+                stroke='#7f8c8d',
+                stroke_width=1
+            ))
+
+    def _draw_clean_houses(self, house_radius):
+        """Draw clean house numbers."""
+        for i in range(12):
+            house_num = i + 1
+            angle = i * 30 + 15 - 90  # Middle of house segment
+            
+            text_radius = house_radius - 20
+            x = self.center_x + text_radius * math.cos(math.radians(angle))
+            y = self.center_y + text_radius * math.sin(math.radians(angle))
+            
+            # House number with clean styling
+            self.dwg.add(self.dwg.text(
+                str(house_num),
+                insert=(x, y),
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size="16",
+                fill='#e74c3c',
+                font_family="Arial, sans-serif",
+                font_weight="bold"
+            ))
+
+    def _draw_clean_planets(self, planets, radius):
+        """Draw planets with clean, readable styling."""
+        logger.info(f"Drawing {len(planets)} planets at radius {radius}")
+        
+        if not planets:
+            logger.warning("No planets data provided to _draw_clean_planets")
+            return
+            
+        # Color scheme for planets
+        planet_colors = {
+            'sun': '#f39c12',
+            'moon': '#8e44ad', 
+            'mercury': '#3498db',
+            'venus': '#e91e63',
+            'mars': '#e74c3c',
+            'jupiter': '#2ecc71',
+            'saturn': '#34495e',
+            'uranus': '#1abc9c',
+            'neptune': '#9b59b6',
+            'pluto': '#795548'
+        }
+            
+        for i, planet in enumerate(planets):
+            if 'longitude' not in planet or 'name' not in planet:
+                continue
+                
+            angle = self._get_planet_angle(planet['longitude'])
+            x = self.center_x + radius * math.cos(math.radians(angle))
+            y = self.center_y + radius * math.sin(math.radians(angle))
+            
+            planet_name = planet['name'].lower()
+            color = planet_colors.get(planet_name, '#34495e')
+            
+            # Clean planet circle background
+            self.dwg.add(self.dwg.circle(
+                center=(x, y),
+                r=12,
+                fill='white',
+                stroke=color,
+                stroke_width=2
+            ))
+            
+            # Planet symbol or abbreviation
+            symbol = PLANET_SYMBOLS.get(planet_name, planet_name[:3].upper())
+            self.dwg.add(self.dwg.text(
+                symbol,
+                insert=(x, y),
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size="12",
+                fill=color,
+                font_family="Arial, sans-serif",
+                font_weight="bold"
+            ))
+            
+            # Planet position label (degrees/minutes)
+            degrees = int(planet['longitude'] % 30)
+            minutes = int((planet['longitude'] % 1) * 60)
+            
+            # Position label with background
+            label_y = y + 20
+            label_text = f"{degrees}°{minutes:02d}'"
+            
+            # Background for readability
+            self.dwg.add(self.dwg.rect(
+                insert=(x - 15, label_y - 8),
+                size=(30, 12),
+                fill='white',
+                fill_opacity=0.9,
+                stroke='none'
+            ))
+            
+            self.dwg.add(self.dwg.text(
+                label_text,
+                insert=(x, label_y),
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size="8",
+                fill='#2c3e50',
+                font_family="Arial, sans-serif"
+            ))
+
+    def _draw_clean_aspects(self, aspects, planet_radius):
+        """Draw aspect lines with clean, simplified styling."""
+        if not aspects:
+            return
+
+        # Simplified aspect colors
+        clean_aspect_colors = {
+            'conjunction': '#e74c3c',
+            'opposition': '#3498db', 
+            'trine': '#2ecc71',
+            'square': '#f39c12',
+            'sextile': '#9b59b6'
+        }
+        
+        for aspect in aspects:
+            planet1_name = aspect.get('planet1')
+            planet2_name = aspect.get('planet2')
+            aspect_type = aspect.get('aspect')
+            
+            if not all([planet1_name, planet2_name, aspect_type]):
+                continue
+
+            planet1 = self._find_planet(planet1_name, self.chart_data['planets'])
+            planet2 = self._find_planet(planet2_name, self.chart_data['planets'])
+
+            if planet1 and planet2:
+                angle1 = self._get_planet_angle(planet1['longitude'])
+                angle2 = self._get_planet_angle(planet2['longitude'])
+                
+                # Use inner radius for cleaner aspect lines
+                inner_radius = planet_radius - 60
+                
+                x1 = self.center_x + inner_radius * math.cos(math.radians(angle1))
+                y1 = self.center_y + inner_radius * math.sin(math.radians(angle1))
+                x2 = self.center_x + inner_radius * math.cos(math.radians(angle2))
+                y2 = self.center_y + inner_radius * math.sin(math.radians(angle2))
+
+                color = clean_aspect_colors.get(aspect_type, '#95a5a6')
+                opacity = 0.7 if aspect_type in ['conjunction', 'opposition', 'trine', 'square'] else 0.5
+                
+                self.dwg.add(self.dwg.line(
+                    start=(x1, y1),
+                    end=(x2, y2),
+                    stroke=color,
+                    stroke_width=1.5,
+                    stroke_opacity=opacity
+                ))
