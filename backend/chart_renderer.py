@@ -456,7 +456,7 @@ class ChartRenderer:
             ))
 
     def _draw_clean_planets(self, planets, radius):
-        """Draw planets with clean, readable styling, just inside the zodiac band, with SVG tooltips (svgwrite 1.4.3 compatible)."""
+        """Draw planets with clean, readable styling, just inside the zodiac band. (Tooltips temporarily disabled)"""
         logger.info(f"Drawing {len(planets)} planets at radius {radius}")
         if not planets:
             logger.warning("No planets data provided to _draw_clean_planets")
@@ -473,7 +473,7 @@ class ChartRenderer:
             'neptune': '#9b59b6',
             'pluto': '#795548'
         }
-        from svgwrite.base import Title
+        # from svgwrite.base import Title  # Tooltip logic disabled
         for i, planet in enumerate(planets):
             if 'longitude' not in planet or 'name' not in planet:
                 continue
@@ -482,13 +482,12 @@ class ChartRenderer:
             y = self.center_y + radius * math.sin(math.radians(angle))
             planet_name = planet['name'].lower()
             color = planet_colors.get(planet_name, '#2c3e50')
-            # Compose tooltip text
-            tooltip = planet['name'].capitalize()
-            if 'sign' in planet and 'degree' in planet:
-                tooltip += f"\n{planet['sign']} {planet['degree']}"
-            if 'house' in planet:
-                tooltip += f"\nHouse {planet['house']}"
-            # Draw planet circle with <title> for tooltip (svgwrite 1.4.3 compatible)
+            # Tooltip logic disabled
+            # tooltip = planet['name'].capitalize()
+            # if 'sign' in planet and 'degree' in planet:
+            #     tooltip += f"\n{planet['sign']} {planet['degree']}
+            # if 'house' in planet:
+            #     tooltip += f"\nHouse {planet['house']}"
             planet_group = self.dwg.g()
             planet_group.add(self.dwg.circle(
                 center=(x, y),
@@ -508,7 +507,7 @@ class ChartRenderer:
                 font_family="Arial, sans-serif",
                 font_weight="bold"
             ))
-            planet_group.add(Title(tooltip))
+            # planet_group.add(Title(tooltip))  # Tooltip logic disabled
             self.dwg.add(planet_group)
 
     def _draw_clean_aspects(self, aspects, planet_radius):
