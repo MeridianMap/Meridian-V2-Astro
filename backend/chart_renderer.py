@@ -119,6 +119,9 @@ def generate_chart_svg(chart_data, chart_config):
         logger.debug("Drawing planets...")
         renderer._draw_clean_planets(planets, planet_radius)
         
+        logger.debug("Drawing angles...")
+        renderer._draw_angles(planet_radius + 25)  # Place angles slightly outside planets
+        
         if chart_config.get('show_aspects', True):
             logger.debug("Drawing aspects...")
             renderer._draw_clean_aspects(aspects, planet_radius)
@@ -609,3 +612,107 @@ class ChartRenderer:
                     line_params['stroke_dasharray'] = dash_array
                 
                 self.dwg.add(self.dwg.line(**line_params))
+
+    def _draw_angles(self, angle_radius):
+        """Draw the four angles (AC, IC, MC, DC) with special styling."""
+        # Look for angles in the houses data (this is where they're actually stored)
+        angles = {}
+        houses_data = self.chart_data.get('houses', {})
+        
+        # Extract angles from houses section
+        if 'ascendant' in houses_data:
+            angles['ascendant'] = houses_data['ascendant']
+        if 'midheaven' in houses_data:
+            angles['midheaven'] = houses_data['midheaven']
+        if 'descendant' in houses_data:
+            angles['descendant'] = houses_data['descendant']
+        if 'imum_coeli' in houses_data:
+            angles['imum_coeli'] = houses_data['imum_coeli']
+        
+        # Also check planets array as fallback (in case angles are stored there too)
+        planets = self.chart_data.get('planets', [])
+        for planet in planets:
+            planet_name = planet.get('name', '').lower()
+            if planet_name in ['ascendant', 'midheaven', 'descendant', 'imum_coeli']:
+                angles[planet_name] = planet
+        
+        angle_symbols = {
+            'ascendant': 'AC',
+            'midheaven': 'MC', 
+            'descendant': 'DC',
+            'imum_coeli': 'IC'
+        }
+        
+        angle_colors = {
+            'ascendant': '#e74c3c',     # Red
+            'midheaven': '#2980b9',     # Blue
+            'descendant': '#e74c3c',    # Red
+            'imum_coeli': '#2980b9'     # Blue
+        }
+        
+        logger.info(f"Found {len(angles)} angles to draw: {list(angles.keys())}")
+        
+        for angle_name, angle_data in angles.items():
+            if 'longitude' not in angle_data:
+                logger.warning(f"Angle {angle_name} missing longitude data")
+                continue
+                
+            angle = self._get_planet_angle(angle_data['longitude'])
+            x = self.center_x + angle_radius * math.cos(math.radians(angle))
+            y = self.center_y + angle_radius * math.sin(math.radians(angle))
+            
+            symbol = angle_symbols.get(angle_name, angle_name.upper()[:2])
+            color = angle_colors.get(angle_name, '#34495e')
+            
+            # Calculate degrees and minutes
+            degrees = int(angle_data['longitude'] % 30)
+            minutes = int((angle_data['longitude'] % 1) * 60)
+            
+            logger.info(f"Drawing angle {symbol} at {angle_data['longitude']:.2f}° (position: {x:.1f}, {y:.1f})")
+            
+            angle_group = self.dwg.g()
+            
+            # Draw angle marker as a diamond shape
+            angle_group.add(self.dwg.polygon(
+                points=[(x, y-12), (x+12, y), (x, y+12), (x-12, y)],
+                fill=color,
+                stroke='#fff',
+                stroke_width=2,
+                opacity=0.9
+            ))
+            
+            # Add angle symbol
+            angle_group.add(self.dwg.text(
+                symbol,
+                insert=(x, y+2),
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size="12",
+                fill='#fff',
+                font_family="Arial, sans-serif",
+                font_weight="bold"
+            ))
+            
+            # Add degree information next to the angle
+            degree_text = f"{symbol}: {degrees}°{minutes:02d}'"
+            angle_group.add(self.dwg.text(
+                degree_text,
+                insert=(x + 20, y),
+                text_anchor="start",
+                alignment_baseline="middle",
+                font_size="11",
+                fill=color,
+                font_family="Arial, sans-serif",
+                font_weight="bold"
+            ))
+            
+            self.dwg.add(angle_group)
+            
+            # Draw angle line to center
+            self.dwg.add(self.dwg.line(
+                start=(self.center_x, self.center_y),
+                end=(x, y),
+                stroke=color,
+                stroke_width=3,
+                opacity=0.8
+            ))
