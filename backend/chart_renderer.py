@@ -56,10 +56,23 @@ def generate_chart_svg(chart_data, chart_config):
         planet_radius = zodiac_radius - 10  # Planets just inside zodiac band, above houses
         inner_radius = house_radius - 70
 
-        # Defensive: ensure lists for all iterables
-        planets = chart_data.get('planets') or []
-        houses = chart_data.get('houses') or []
-        aspects = chart_data.get('aspects') or []
+        # Defensive: ensure lists for all iterables, even if nested or dict
+        def ensure_list(val):
+            if isinstance(val, list):
+                return val
+            if isinstance(val, dict):
+                # Try to get 'houses', 'planets', or 'aspects' key if present
+                for k in ['houses', 'planets', 'aspects']:
+                    if k in val and isinstance(val[k], list):
+                        return val[k]
+                return []
+            if val is None:
+                return []
+            return list(val) if hasattr(val, '__iter__') else [val]
+
+        planets = ensure_list(chart_data.get('planets'))
+        houses = ensure_list(chart_data.get('houses'))
+        aspects = ensure_list(chart_data.get('aspects'))
 
         # Debug logging
         logger.info(f"Chart data summary - Houses: {len(houses)}, Planets: {len(planets)}, Aspects: {len(aspects)}")
