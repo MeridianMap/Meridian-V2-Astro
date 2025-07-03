@@ -389,14 +389,19 @@ def get_chart_svg(layer_type):
     This endpoint is now stateless and relies on the frontend to provide the correct data.
     It does not matter if it's natal or transit; it just renders the data it gets.
     """
-    data = request.get_json()
-    chart_data = data.get('chart_data')
-    chart_config = data.get('chart_config', {})
-    
-    if not chart_data:
-        return jsonify({"error": "Missing chart_data"}), 400
-
     try:
+        data = request.get_json()
+        if not data:
+            app.logger.error("No JSON data received")
+            return jsonify({"error": "No JSON data received"}), 400
+            
+        chart_data = data.get('chart_data')
+        chart_config = data.get('chart_config', {})
+        
+        if not chart_data:
+            app.logger.error("Missing chart_data in request")
+            return jsonify({"error": "Missing chart_data"}), 400
+
         # Add debugging information
         app.logger.info(f"Generating {layer_type} chart")
         app.logger.info(f"Chart data keys: {list(chart_data.keys())}")
@@ -405,17 +410,39 @@ def get_chart_svg(layer_type):
         app.logger.info(f"Aspects count: {len(chart_data.get('aspects', []))}")
         app.logger.info(f"Chart config: {chart_config}")
         
+        # Validate essential data
+        if not chart_data.get('planets'):
+            app.logger.error("No planets data found")
+            return jsonify({"error": "No planets data found"}), 400
+            
+        if not chart_data.get('houses'):
+            app.logger.error("No houses data found")
+            return jsonify({"error": "No houses data found"}), 400
+        
         # Ensure chart_config has the layer type for potential future use
         chart_config['layer_type'] = layer_type
         
         # The renderer simply draws whatever data it is given.
         svg_content = generate_chart_svg(chart_data, chart_config)
+        
+        if not svg_content:
+            app.logger.error("SVG generation returned empty content")
+            return jsonify({"error": "SVG generation failed - empty content"}), 500
+            
         return jsonify({"svg": svg_content})
+        
+    except ImportError as e:
+        app.logger.error(f"Import error generating SVG for {layer_type}: {e}")
+        return jsonify({"error": f"Missing required dependency: {str(e)}"}), 500
     except Exception as e:
-        logging.error(f"Error generating SVG for {layer_type}: {e}")
+        app.logger.error(f"Error generating SVG for {layer_type}: {e}")
         import traceback
-        logging.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            "error": str(e),
+            "type": type(e).__name__,
+            "details": "Check server logs for more information"
+        }), 500
 
 @app.route('/api/chart-config', methods=['GET'])
 def api_chart_config():
@@ -464,6 +491,54 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
     return response
+
+@app.route('/api/health/chart-renderer', methods=['GET'])
+def health_check_chart_renderer():
+    """Health check endpoint to test if chart rendering is working."""
+    try:
+        # Test basic SVG generation with minimal data
+        test_chart_data = {
+            'planets': [
+                {'name': 'sun', 'longitude': 0, 'latitude': 0, 'sign': 'Aries', 'house': 1}
+            ],
+            'houses': [
+                {'number': 1, 'longitude': 0}
+            ],
+            'aspects': [],
+            'lots': [],
+            'fixed_stars': [],
+            'coordinates': {'latitude': 0, 'longitude': 0},
+            'utc_time': '2025-01-01T12:00:00Z',
+            'input': {'birth_date': '2025-01-01'},
+            'chart_type': 'natal'
+        }
+        
+        test_config = {
+            'width': 400,
+            'height': 400,
+            'show_aspects': False,
+            'layer_type': 'test'
+        }
+        
+        svg_content = generate_chart_svg(test_chart_data, test_config)
+        
+        return jsonify({
+            "status": "healthy",
+            "chart_renderer": "working",
+            "svg_length": len(svg_content),
+            "test_passed": True
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Chart renderer health check failed: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            "status": "unhealthy",
+            "chart_renderer": "failed",
+            "error": str(e),
+            "type": type(e).__name__
+        }), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

@@ -42,50 +42,61 @@ def generate_chart_svg(chart_data, chart_config):
     """
     Generates the SVG for a single-wheel chart (natal, transit, etc.).
     """
-    width = chart_config.get('width', 600)
-    height = chart_config.get('height', 600)
-    center_x, center_y = width / 2, height / 2
-    outer_radius = min(center_x, center_y) - 20
-    zodiac_band_width = 50
-    house_cusp_radius = outer_radius - zodiac_band_width
-    inner_radius = house_cusp_radius - 30
-    planet_radius = inner_radius - 30
+    try:
+        logger.info(f"Starting chart generation with config: {chart_config}")
+        
+        width = chart_config.get('width', 600)
+        height = chart_config.get('height', 600)
+        center_x, center_y = width / 2, height / 2
+        outer_radius = min(center_x, center_y) - 20
+        zodiac_band_width = 50
+        house_cusp_radius = outer_radius - zodiac_band_width
+        inner_radius = house_cusp_radius - 30
+        planet_radius = inner_radius - 30
 
-    # Debug logging
-    print(f"DEBUG: Generating chart - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
+        # Debug logging
+        logger.info(f"Chart data summary - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
 
-    svg_io = io.StringIO()
-    dwg = svgwrite.Drawing(stringio=svg_io, size=(width, height))
-    dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), fill='white'))
+        svg_io = io.StringIO()
+        dwg = svgwrite.Drawing(stringio=svg_io, size=(width, height))
+        dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), fill='white'))
 
-    renderer = ChartRenderer(dwg, width, height, chart_config, chart_data)
-    
-    # Render all components for a single-wheel chart
-    print("DEBUG: Drawing zodiac signs...")
-    renderer._draw_zodiac_signs(outer_radius, zodiac_band_width)
-    print("DEBUG: Drawing house cusps...")
-    renderer._draw_house_cusps(house_cusp_radius)
-    print("DEBUG: Drawing house segments...")
-    renderer._draw_house_segments(outer_radius, inner_radius)
-    print("DEBUG: Drawing houses...")
-    renderer._draw_houses(inner_radius, house_cusp_radius)
-    print("DEBUG: Drawing planets...")
-    renderer._draw_planets(chart_data.get('planets', []), planet_radius)
-    
-    if chart_config.get('show_aspects', True):
-        print("DEBUG: Drawing aspects...")
-        renderer._draw_aspects(chart_data.get('aspects', []), planet_radius)
+        renderer = ChartRenderer(dwg, width, height, chart_config, chart_data)
+        
+        # Render all components for a single-wheel chart
+        logger.debug("Drawing zodiac signs...")
+        renderer._draw_zodiac_signs(outer_radius, zodiac_band_width)
+        logger.debug("Drawing house cusps...")
+        renderer._draw_house_cusps(house_cusp_radius)
+        logger.debug("Drawing house segments...")
+        renderer._draw_house_segments(outer_radius, inner_radius)
+        logger.debug("Drawing houses...")
+        renderer._draw_houses(inner_radius, house_cusp_radius)
+        logger.debug("Drawing planets...")
+        renderer._draw_planets(chart_data.get('planets', []), planet_radius)
+        
+        if chart_config.get('show_aspects', True):
+            logger.debug("Drawing aspects...")
+            renderer._draw_aspects(chart_data.get('aspects', []), planet_radius)
 
-    # Add a title based on the chart type and data
-    layer_type = chart_config.get('layer_type', 'chart')
-    title_text = f"{layer_type.title()} Chart"
-    if chart_data.get('input', {}).get('birth_date'):
-        title_text += f" - {chart_data['input']['birth_date']}"
-    
-    dwg.add(dwg.text(title_text, insert=(center_x, 20), text_anchor='middle', font_size=16, fill='#333'))
+        # Add a title based on the chart type and data
+        layer_type = chart_config.get('layer_type', 'chart')
+        title_text = f"{layer_type.title()} Chart"
+        if chart_data.get('input', {}).get('birth_date'):
+            title_text += f" - {chart_data['input']['birth_date']}"
+        
+        dwg.add(dwg.text(title_text, insert=(center_x, 20), text_anchor='middle', font_size=16, fill='#333'))
 
-    print("DEBUG: Chart generation complete")
-    return svg_io.getvalue()
+        logger.info("Chart generation completed successfully")
+        return svg_io.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Error in generate_chart_svg: {str(e)}")
+        logger.error(f"Chart data keys: {list(chart_data.keys()) if chart_data else 'None'}")
+        logger.error(f"Chart config: {chart_config}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise
 
 class ChartRenderer:
     def __init__(self, dwg, width, height, chart_config, chart_data):
@@ -162,10 +173,10 @@ class ChartRenderer:
         else:
             houses = house_data if isinstance(house_data, list) else []
         
-        print(f"DEBUG: Drawing houses - house_data type: {type(house_data)}")
-        print(f"DEBUG: houses count: {len(houses)}")
+        logger.debug(f"Drawing houses - house_data type: {type(house_data)}")
+        logger.debug(f"houses count: {len(houses)}")
         if houses and len(houses) > 0:
-            print(f"DEBUG: First house: {houses[0]}")
+            logger.debug(f"First house: {houses[0]}")
         
         # Always draw 12 houses using the simplest approach for now
         for i in range(12):
@@ -179,7 +190,7 @@ class ChartRenderer:
             x = self.center_x + text_radius * math.cos(math.radians(chart_angle))
             y = self.center_y + text_radius * math.sin(math.radians(chart_angle))
             
-            print(f"DEBUG: House {house_num}: angle={chart_angle}, position=({x:.1f}, {y:.1f})")
+            logger.debug(f"House {house_num}: angle={chart_angle}, position=({x:.1f}, {y:.1f})")
             
             # Make house numbers more prominent and visible
             self.dwg.add(self.dwg.text(

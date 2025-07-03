@@ -165,7 +165,21 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error details from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = `Server error: ${errorData.error}`;
+            if (errorData.type) {
+              errorMessage += ` (${errorData.type})`;
+            }
+          }
+        } catch {
+          // If we can't parse the error response, use the status text
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
