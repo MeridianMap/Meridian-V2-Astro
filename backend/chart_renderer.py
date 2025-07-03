@@ -56,8 +56,13 @@ def generate_chart_svg(chart_data, chart_config):
         planet_radius = zodiac_radius - 10  # Planets just inside zodiac band, above houses
         inner_radius = house_radius - 70
 
+        # Defensive: ensure lists for all iterables
+        planets = chart_data.get('planets') or []
+        houses = chart_data.get('houses') or []
+        aspects = chart_data.get('aspects') or []
+
         # Debug logging
-        logger.info(f"Chart data summary - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
+        logger.info(f"Chart data summary - Houses: {len(houses)}, Planets: {len(planets)}, Aspects: {len(aspects)}")
 
         # Create SVG drawing with clean white background
         dwg = svgwrite.Drawing(size=(width, height))
@@ -76,11 +81,11 @@ def generate_chart_svg(chart_data, chart_config):
         renderer._draw_clean_houses(house_radius)
         
         logger.debug("Drawing planets...")
-        renderer._draw_clean_planets(chart_data.get('planets', []), planet_radius)
+        renderer._draw_clean_planets(planets, planet_radius)
         
         if chart_config.get('show_aspects', True):
             logger.debug("Drawing aspects...")
-            renderer._draw_clean_aspects(chart_data.get('aspects', []), planet_radius)
+            renderer._draw_clean_aspects(aspects, planet_radius)
 
         # Add a clean title
         layer_type = chart_config.get('layer_type', 'chart')
