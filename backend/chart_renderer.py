@@ -46,9 +46,9 @@ def generate_chart_svg(chart_data, chart_config):
         logger.info(f"Starting chart generation with config: {chart_config}")
         
         # Add validation for chart_data
-        if not chart_data or not isinstance(chart_data, dict):
+        if chart_data is None or not isinstance(chart_data, dict):
             logger.error(f"Invalid chart_data: {chart_data}")
-            raise ValueError("chart_data must be a non-empty dictionary")
+            raise ValueError("chart_data must be a dictionary")
         
         width = chart_config.get('width', 600)
         height = chart_config.get('height', 600)
@@ -596,11 +596,16 @@ class ChartRenderer:
                     dash_array = '5,3'
                 elif aspect_type == 'semisextile':
                     dash_array = '2,2'
-                self.dwg.add(self.dwg.line(
-                    start=(x1, y1),
-                    end=(x2, y2),
-                    stroke=color,
-                    stroke_width=stroke_width,
-                    opacity=opacity,
-                    stroke_dasharray=dash_array
-                ))
+                
+                # Create line with conditional dasharray
+                line_params = {
+                    'start': (x1, y1),
+                    'end': (x2, y2),
+                    'stroke': color,
+                    'stroke_width': stroke_width,
+                    'opacity': opacity
+                }
+                if dash_array is not None:
+                    line_params['stroke_dasharray'] = dash_array
+                
+                self.dwg.add(self.dwg.line(**line_params))
