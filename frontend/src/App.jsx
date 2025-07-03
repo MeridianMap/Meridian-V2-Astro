@@ -7,6 +7,7 @@ import ChartHeader from './components/ChartHeader';
 import CCGDateControls from './components/CCGDateControls';
 import ChartForm from './components/ChartForm';
 import ChartDisplay from './components/ChartDisplay';
+import DemoCharts from './components/DemoCharts';
 import NatalDisplayControls from './components/NatalDisplayControls';
 import TransitControls from './components/TransitControls';
 import CCGControls from './components/CCGControls';
@@ -320,6 +321,45 @@ function App() {
     }
   };
 
+  // Demo chart handler
+  const handleDemoChart = async (demoData) => {
+    console.log('Loading demo chart:', demoData);
+    
+    // Update form data with demo values
+    setFormData(demoData);
+
+    // Generate the chart automatically
+    try {
+      setOverallProgress({ step: 'ephemeris', percentage: 20, message: `Generating demo chart for ${demoData.name}...` });
+      const chartData = await fetchChart(demoData);
+      
+      if (chartData) {
+        setOverallProgress({ step: 'astro', percentage: 60, message: 'Processing demo astrocartography...' });
+        
+        if (chartData.astrocartography) {
+          console.log('🎯 Setting demo astrocartography data:', {
+            features: chartData.astrocartography.features?.length || 0,
+            dataKeys: Object.keys(chartData.astrocartography)
+          });
+          
+          setAstroData(chartData.astrocartography);
+          layerManager.setLayerData('natal', chartData.astrocartography);
+          forceMapUpdate();
+        }
+        
+        setOverallProgress({ step: 'done', percentage: 100, message: `Demo chart for ${demoData.name} complete!` });
+        
+        setTimeout(() => {
+          setOverallProgress({ step: null, percentage: 0, message: '' });
+        }, 2000);
+      }
+    } catch (error) {
+      setOverallProgress({ step: null, percentage: 0, message: '' });
+      console.error('Demo chart generation failed:', error);
+      setError(`Failed to generate demo chart for ${demoData.name}. Please try again.`);
+    }
+  };
+
   // Re-generate CCG overlay when ccgDate or line toggles change
   useEffect(() => {
     if (layerManager.isLayerVisible('CCG')) {
@@ -629,6 +669,10 @@ function App() {
         </pre>
       )}
       <h1>Meridian V2</h1>
+      
+      {/* Demo Charts Section */}
+      <DemoCharts onLoadDemo={handleDemoChart} />
+      
       <ChartForm
         formData={formData}
         setFormData={setFormData}
