@@ -456,7 +456,7 @@ class ChartRenderer:
             ))
 
     def _draw_clean_planets(self, planets, radius):
-        """Draw planets with clean, readable styling, just inside the zodiac band, with SVG tooltips (compatible with svgwrite 1.4.3)."""
+        """Draw planets with clean, readable styling, just inside the zodiac band, with SVG tooltips (svgwrite 1.4.3 compatible)."""
         logger.info(f"Drawing {len(planets)} planets at radius {radius}")
         if not planets:
             logger.warning("No planets data provided to _draw_clean_planets")
@@ -473,6 +473,7 @@ class ChartRenderer:
             'neptune': '#9b59b6',
             'pluto': '#795548'
         }
+        from svgwrite.container import Title
         for i, planet in enumerate(planets):
             if 'longitude' not in planet or 'name' not in planet:
                 continue
@@ -507,8 +508,7 @@ class ChartRenderer:
                 font_family="Arial, sans-serif",
                 font_weight="bold"
             ))
-            # svgwrite 1.4.3 does not have .title(), so use .element() for raw <title>
-            planet_group.add(self.dwg.element('title', {}, tooltip))
+            planet_group.add(Title(tooltip))
             self.dwg.add(planet_group)
 
     def _draw_clean_aspects(self, aspects, planet_radius):
