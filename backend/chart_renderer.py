@@ -456,7 +456,7 @@ class ChartRenderer:
             ))
 
     def _draw_clean_planets(self, planets, radius):
-        """Draw planets with clean, readable styling, just inside the zodiac band, with SVG tooltips."""
+        """Draw planets with clean, readable styling, just inside the zodiac band, with SVG tooltips (compatible with svgwrite 1.4.3)."""
         logger.info(f"Drawing {len(planets)} planets at radius {radius}")
         if not planets:
             logger.warning("No planets data provided to _draw_clean_planets")
@@ -487,7 +487,7 @@ class ChartRenderer:
                 tooltip += f"\n{planet['sign']} {planet['degree']}"
             if 'house' in planet:
                 tooltip += f"\nHouse {planet['house']}"
-            # Draw planet circle with <title> for tooltip
+            # Draw planet circle with <title> for tooltip (svgwrite 1.4.3 compatible)
             planet_group = self.dwg.g()
             planet_group.add(self.dwg.circle(
                 center=(x, y),
@@ -507,7 +507,8 @@ class ChartRenderer:
                 font_family="Arial, sans-serif",
                 font_weight="bold"
             ))
-            planet_group.add(self.dwg.title(tooltip))
+            # svgwrite 1.4.3 does not have .title(), so use .element() for raw <title>
+            planet_group.add(self.dwg.element('title', {}, tooltip))
             self.dwg.add(planet_group)
 
     def _draw_clean_aspects(self, aspects, planet_radius):
