@@ -30,13 +30,13 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
 
   const layerTypes = useMemo(() => ({
     'NATAL': 'natal',
-    'TRANSIT': 'transit'
+    // 'TRANSIT': 'transit'  // Commented out for now
   }), []);
 
-  const layerEndpoints = useMemo(() => ({
-    'NATAL': '/api/calculate',
-    'TRANSIT': '/api/calculate'  // Transit charts use the same base data as natal
-  }), []);
+  // const layerEndpoints = useMemo(() => ({
+  //   'NATAL': '/api/calculate',
+  //   // 'TRANSIT': '/api/calculate'  // Transit charts use the same base data as natal - Commented out
+  // }), []);
 
   const fetchLayerData = useCallback(async (layerType, layerKey) => {
     if (!chartData || !chartData.input) {
@@ -45,31 +45,39 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
     }
 
     try {
-      const endpoint = layerEndpoints[layerKey];
+      // const endpoint = layerEndpoints[layerKey];  // Commented out since only NATAL is supported
       
       // For natal layer, use existing chartData
       if (layerKey === 'NATAL') {
+        // We use the chartData prop directly as it contains the full natal chart data.
         return chartData;
       }
 
-      // For transit layer, calculate current planetary positions
+      // For transit layer, we need to fetch a new chart for the current time.
+      // COMMENTED OUT: Transit functionality temporarily disabled
+      /*
       if (layerKey === 'TRANSIT') {
         const now = new Date();
         const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
         const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
         
+        // We use the location from the base natal chart, but the current time.
+        // The location can be either coordinates or city/state/country.
         const requestData = {
-          birth_date: currentDate,  // Use current date instead of birth date
-          birth_time: currentTime,  // Use current time instead of birth time
-          birth_city: chartData.input.birth_city,
-          birth_state: chartData.input.birth_state,
-          birth_country: chartData.input.birth_country,
-          timezone: chartData.input.timezone,
-          coordinates: chartData.coordinates,
+          birth_date: currentDate,
+          birth_time: currentTime,
+          timezone: chartData.input.timezone, // The backend will handle the conversion to UTC
           house_system: chartData.input.house_system || 'whole_sign',
-          progressed_for: null,  // This tells the backend to calculate transit positions
-          progression_method: null
         };
+
+        // Add location data (coordinates take precedence)
+        if (chartData.coordinates && chartData.coordinates.latitude && chartData.coordinates.longitude) {
+          requestData.coordinates = chartData.coordinates;
+        } else {
+          requestData.birth_city = chartData.input.birth_city;
+          requestData.birth_state = chartData.input.birth_state;
+          requestData.birth_country = chartData.input.birth_country;
+        }
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -89,45 +97,20 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
           throw new Error(result.error);
         }
 
+        // The result is a full chart data object for the current time.
         return result;
       }
+      */
 
-      // For other layers, fetch from specific endpoints
-      const requestData = {
-        birth_date: chartData.input.birth_date,
-        birth_time: chartData.input.birth_time,
-        birth_city: chartData.input.birth_city,
-        birth_state: chartData.input.birth_state,
-        birth_country: chartData.input.birth_country,
-        timezone: chartData.input.timezone,
-        coordinates: chartData.coordinates,
-        house_system: chartData.input.house_system || 'whole_sign'
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      return result;
+      // Fallback for any other layer types, though not currently used.
+      return null;
     } catch (err) {
       console.error(`Error fetching ${layerKey} data:`, err);
-      throw err;
+      // Set a more user-friendly error message
+      setError(`Failed to load ${layerKey} data. Please try again.`);
+      return null; // Ensure we return null on error
     }
-  }, [chartData, layerEndpoints]);
+  }, [chartData]); // Removed layerEndpoints since only NATAL is supported
 
   const generateChart = useCallback(async (layerType, layerKey) => {
     setLoading(true);
@@ -161,6 +144,14 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
         input: currentLayerData.input,
         chart_type: currentLayerData.chart_type
       };
+
+      // Debug logging
+      console.log(`Generating ${layerKey} chart with data:`, {
+        planets: chartDataForSvg.planets?.length || 0,
+        houses: chartDataForSvg.houses?.length || 0,
+        aspects: chartDataForSvg.aspects?.length || 0,
+        show_aspects: chartConfig.show_aspects
+      });
 
       const response = await fetch(`/api/chart-svg/${layerType}`, {
         method: 'POST',
@@ -257,7 +248,7 @@ const ChartDisplay = ({ chartData, currentLayer }) => {
   const getLayerDisplayName = (layer) => {
     const names = {
       'NATAL': 'Natal Chart',
-      'TRANSIT': 'Transit Chart'
+      // 'TRANSIT': 'Transit Chart'  // Commented out
     };
     return names[layer] || layer;
   };

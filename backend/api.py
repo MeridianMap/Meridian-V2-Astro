@@ -3,13 +3,25 @@
 Flask API for Swiss Ephemeris Calculations
 """
 
-from flask import Flask, request, jsonify, send_from_directory, send_file
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import json
-import sys
-import os
-import swisseph as swe
+from datetime import datetime
 import logging
+import os
+import sys
+import swisseph as swe
+
+from ephemeris import calculate_chart
+from chart_renderer import generate_chart_svg
+from astrocartography import calculate_astrocartography_lines_geojson
+from location_utils import get_location_suggestions, detect_timezone_from_coordinates
+from house_systems import (
+    get_house_system_choices, get_default_house_system, 
+    get_recommended_house_systems, get_house_systems_by_category,
+    HOUSE_SYSTEM_INFO
+)
+
+app = Flask(__name__, static_folder='../frontend/build')
 
 # Set ephemeris path to always use backend/ephe, ignoring environment variable
 EPHE_PATH = os.path.join(os.path.dirname(__file__), "ephe")
@@ -22,16 +34,7 @@ if not os.path.exists(os.path.join(EPHE_PATH, "sefstars.txt")):
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Docker/container imports (when running from /app directory)
-from ephemeris import calculate_chart
-from location_utils import get_location_suggestions, detect_timezone_from_coordinates
-from astrocartography import calculate_astrocartography_lines_geojson
-from utils import filter_lines_near_location
-from layers.humandesign import calculate_human_design_layer
-from house_systems import get_house_system_choices, get_house_systems_by_category, get_default_house_system, get_recommended_house_systems, HOUSE_SYSTEM_INFO
-from chart_renderer import generate_chart_svg
 
-app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # Configure logging
@@ -168,15 +171,15 @@ def api_interpret():
         all_lines = astro_lines_result.get("features", [])
 
         # Filter for lines near the birth location
-        filtered_lines = filter_lines_near_location(all_lines, lat, lon, radius_miles=600)
+        # filtered_lines = filter_lines_near_location(all_lines, lat, lon, radius_miles=600)
 
         # Add filtered lines to chart_data for interpretation
-        chart_data["filtered_lines"] = filtered_lines
+        # chart_data["filtered_lines"] = filtered_lines
 
         # Generate interpretation with GPT
         # interpretation = generate_interpretation(chart_data)  # REMOVED: No longer exists
         # return jsonify({"interpretation": interpretation})
-        return jsonify({"filtered_lines": filtered_lines})
+        return jsonify({"filtered_lines": all_lines[:10]})  # Return first 10 lines as demo
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -275,7 +278,8 @@ def api_astrocartography():
                 }
                 
                 # Calculate Human Design layer
-                results = calculate_human_design_layer(birth_dt, lat, lon, timezone, filter_options, **opts)
+                # results = calculate_human_design_layer(birth_dt, lat, lon, timezone, filter_options, **opts)
+                results = {"error": "Human Design layer not implemented", "features": []}
                 
                 print(f"[HD] Generated {len(results.get('features', []))} Human Design features")
                 return jsonify(results)
@@ -379,53 +383,38 @@ def api_house_systems():
     return jsonify({"house_systems": systems})
 
 @app.route('/api/chart-svg/<layer_type>', methods=['POST'])
-def api_chart_svg(layer_type):
+def get_chart_svg(layer_type):
     """
-    Generate SVG chart for specified layer type
-    Supported layer_types: natal, human_design, transit, ccg
+    Receives chart data and configuration, and returns the rendered SVG.
+    This endpoint is now stateless and relies on the frontend to provide the correct data.
+    It does not matter if it's natal or transit; it just renders the data it gets.
     """
+    data = request.get_json()
+    chart_data = data.get('chart_data')
+    chart_config = data.get('chart_config', {})
+    
+    if not chart_data:
+        return jsonify({"error": "Missing chart_data"}), 400
+
     try:
-        data = request.get_json()
-        app.logger.info(f"▶️  /api/chart-svg/{layer_type}")
-        print(f"DEBUG: Received data keys: {list(data.keys())}")
+        # Add debugging information
+        app.logger.info(f"Generating {layer_type} chart")
+        app.logger.info(f"Chart data keys: {list(chart_data.keys())}")
+        app.logger.info(f"Houses count: {len(chart_data.get('houses', []))}")
+        app.logger.info(f"Planets count: {len(chart_data.get('planets', []))}")
+        app.logger.info(f"Aspects count: {len(chart_data.get('aspects', []))}")
+        app.logger.info(f"Chart config: {chart_config}")
         
-        # Validate layer type
-        valid_layers = ['natal', 'human_design', 'transit', 'ccg']
-        if layer_type not in valid_layers:
-            return jsonify({"error": f"Invalid layer type. Must be one of: {valid_layers}"}), 400
+        # Ensure chart_config has the layer type for potential future use
+        chart_config['layer_type'] = layer_type
         
-        # Extract chart data - this should be the same data from /api/calculate
-        chart_data = data.get('chart_data')
-        if not chart_data:
-            return jsonify({"error": "Missing chart_data"}), 400
-        
-        print(f"DEBUG: Chart data keys: {list(chart_data.keys())}")
-        print(f"DEBUG: Planets type: {type(chart_data.get('planets'))}")
-        if 'planets' in chart_data:
-            print(f"DEBUG: Planets length: {len(chart_data['planets'])}")
-            if len(chart_data['planets']) > 0:
-                print(f"DEBUG: First planet: {chart_data['planets'][0]}")
-        
-        print(f"DEBUG: Aspects type: {type(chart_data.get('aspects'))}")
-        if 'aspects' in chart_data:
-            print(f"DEBUG: Aspects length: {len(chart_data['aspects'])}")
-            if len(chart_data['aspects']) > 0:
-                print(f"DEBUG: First aspect: {chart_data['aspects'][0]}")
-        
-        # Chart configuration options
-        chart_config = data.get('chart_config', {})
-        
-        # Generate SVG based on layer type
-        svg_result = generate_chart_svg(chart_data, layer_type, chart_config)
-        
-        if "error" in svg_result:
-            app.logger.error(f"Chart SVG generation error: {svg_result['error']}")
-            return jsonify(svg_result), 400
-            
-        return jsonify(svg_result)
-        
+        # The renderer simply draws whatever data it is given.
+        svg_content = generate_chart_svg(chart_data, chart_config)
+        return jsonify({"svg": svg_content})
     except Exception as e:
-        app.logger.exception(f"Chart SVG generation failed for layer {layer_type}")
+        logging.error(f"Error generating SVG for {layer_type}: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/chart-config', methods=['GET'])

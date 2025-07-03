@@ -727,12 +727,14 @@ function App() {
                 Human Design
               </button>
               */}
+              {/*
               <button 
                 className={`layer-tab ${currentChartLayer === 'TRANSIT' ? 'active' : ''}`}
                 onClick={() => setCurrentChartLayer('TRANSIT')}
               >
                 Transit Chart
               </button>
+              */}
               {/*
               <button 
                 className={`layer-tab ${currentChartLayer === 'COMPOSITE' ? 'active' : ''}`}
