@@ -48,12 +48,12 @@ def generate_chart_svg(chart_data, chart_config):
         height = chart_config.get('height', 600)
         center_x, center_y = width / 2, height / 2
         
-        # Simplified radius calculations for cleaner layout
+        # Improved radius calculations for better planet visibility
         outer_radius = min(center_x, center_y) - 30
-        zodiac_radius = outer_radius - 40
-        house_radius = zodiac_radius - 40
-        planet_radius = house_radius - 50
-        inner_radius = planet_radius - 40
+        zodiac_radius = outer_radius - 20
+        house_radius = zodiac_radius - 30
+        planet_radius = house_radius - 15  # Move planets even closer to outer edge for maximum visibility
+        inner_radius = planet_radius - 70
 
         # Debug logging
         logger.info(f"Chart data summary - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
@@ -379,7 +379,7 @@ class ChartRenderer:
         ))
 
     def _draw_clean_zodiac(self, zodiac_radius):
-        """Draw clean zodiac signs around the chart."""
+        """Draw clean zodiac signs with degree markings around the chart."""
         zodiac_signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
                        'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
         
@@ -396,24 +396,54 @@ class ChartRenderer:
                 insert=(x, y),
                 text_anchor="middle",
                 alignment_baseline="middle",
-                font_size="12",
+                font_size="11",
                 fill='#34495e',
                 font_family="Arial, sans-serif",
                 font_weight="500"
             ))
             
-            # Draw zodiac division lines
+            # Draw main zodiac division lines (every 30 degrees) - make them bolder
             line_start_x = self.center_x + zodiac_radius * math.cos(math.radians(angle))
             line_start_y = self.center_y + zodiac_radius * math.sin(math.radians(angle))
-            line_end_x = self.center_x + (zodiac_radius + 15) * math.cos(math.radians(angle))
-            line_end_y = self.center_y + (zodiac_radius + 15) * math.sin(math.radians(angle))
+            line_end_x = self.center_x + (zodiac_radius + 20) * math.cos(math.radians(angle))
+            line_end_y = self.center_y + (zodiac_radius + 20) * math.sin(math.radians(angle))
             
             self.dwg.add(self.dwg.line(
                 start=(line_start_x, line_start_y),
                 end=(line_end_x, line_end_y),
-                stroke='#7f8c8d',
-                stroke_width=1
+                stroke='#2c3e50',
+                stroke_width=3  # Bolder main division lines
             ))
+            
+            # Add 10-degree tick marks for easier degree reading
+            for tick in [10, 20]:
+                tick_angle = angle + tick
+                tick_start_x = self.center_x + zodiac_radius * math.cos(math.radians(tick_angle))
+                tick_start_y = self.center_y + zodiac_radius * math.sin(math.radians(tick_angle))
+                tick_end_x = self.center_x + (zodiac_radius + 12) * math.cos(math.radians(tick_angle))
+                tick_end_y = self.center_y + (zodiac_radius + 12) * math.sin(math.radians(tick_angle))
+                
+                self.dwg.add(self.dwg.line(
+                    start=(tick_start_x, tick_start_y),
+                    end=(tick_end_x, tick_end_y),
+                    stroke='#34495e',
+                    stroke_width=2  # Bold 10-degree marks
+                ))
+            
+            # Add 5-degree tick marks for even finer degree reading
+            for tick in [5, 15, 25]:
+                tick_angle = angle + tick
+                tick_start_x = self.center_x + zodiac_radius * math.cos(math.radians(tick_angle))
+                tick_start_y = self.center_y + zodiac_radius * math.sin(math.radians(tick_angle))
+                tick_end_x = self.center_x + (zodiac_radius + 8) * math.cos(math.radians(tick_angle))
+                tick_end_y = self.center_y + (zodiac_radius + 8) * math.sin(math.radians(tick_angle))
+                
+                self.dwg.add(self.dwg.line(
+                    start=(tick_start_x, tick_start_y),
+                    end=(tick_end_x, tick_end_y),
+                    stroke='#7f8c8d',
+                    stroke_width=1  # Thinner 5-degree marks
+                ))
 
     def _draw_clean_houses(self, house_radius):
         """Draw clean house numbers."""
@@ -470,43 +500,45 @@ class ChartRenderer:
             planet_name = planet['name'].lower()
             color = planet_colors.get(planet_name, '#34495e')
             
-            # Clean planet circle background
+            # Clean planet circle background - make slightly larger for better visibility
             self.dwg.add(self.dwg.circle(
                 center=(x, y),
-                r=12,
+                r=14,  # Increased from 12 to 14
                 fill='white',
                 stroke=color,
                 stroke_width=2
             ))
             
-            # Planet symbol or abbreviation
+            # Planet symbol or abbreviation - larger and bolder
             symbol = PLANET_SYMBOLS.get(planet_name, planet_name[:3].upper())
             self.dwg.add(self.dwg.text(
                 symbol,
                 insert=(x, y),
                 text_anchor="middle",
                 alignment_baseline="middle",
-                font_size="12",
+                font_size="14",  # Increased from 12 to 14
                 fill=color,
                 font_family="Arial, sans-serif",
                 font_weight="bold"
             ))
             
-            # Planet position label (degrees/minutes)
+            # Planet position label (degrees/minutes) - enhanced readability
             degrees = int(planet['longitude'] % 30)
             minutes = int((planet['longitude'] % 1) * 60)
             
-            # Position label with background
-            label_y = y + 20
+            # Position label with enhanced background
+            label_y = y + 24  # Move label slightly further from planet
             label_text = f"{degrees}°{minutes:02d}'"
             
-            # Background for readability
+            # Enhanced background for better readability
             self.dwg.add(self.dwg.rect(
-                insert=(x - 15, label_y - 8),
-                size=(30, 12),
+                insert=(x - 18, label_y - 9),
+                size=(36, 14),
                 fill='white',
-                fill_opacity=0.9,
-                stroke='none'
+                fill_opacity=0.95,
+                stroke='#bdc3c7',
+                stroke_width=0.5,
+                rx=2  # Rounded corners
             ))
             
             self.dwg.add(self.dwg.text(
@@ -514,23 +546,26 @@ class ChartRenderer:
                 insert=(x, label_y),
                 text_anchor="middle",
                 alignment_baseline="middle",
-                font_size="8",
+                font_size="9",  # Slightly larger font
                 fill='#2c3e50',
-                font_family="Arial, sans-serif"
+                font_family="Arial, sans-serif",
+                font_weight="600"  # Semi-bold for better readability
             ))
 
     def _draw_clean_aspects(self, aspects, planet_radius):
-        """Draw aspect lines with clean, simplified styling."""
+        """Draw aspect lines with clear, visible styling for better readability."""
         if not aspects:
             return
 
-        # Simplified aspect colors
+        # Enhanced aspect colors for better visibility
         clean_aspect_colors = {
-            'conjunction': '#e74c3c',
-            'opposition': '#3498db', 
-            'trine': '#2ecc71',
-            'square': '#f39c12',
-            'sextile': '#9b59b6'
+            'conjunction': '#e74c3c',     # Red - most important
+            'opposition': '#3498db',      # Blue - major aspect
+            'trine': '#2ecc71',          # Green - harmonious
+            'square': '#f39c12',         # Orange - challenging
+            'sextile': '#9b59b6',        # Purple - opportunity
+            'quincunx': '#95a5a6',       # Gray - adjustment
+            'semisextile': '#bdc3c7'     # Light gray - minor
         }
         
         for aspect in aspects:
@@ -548,8 +583,8 @@ class ChartRenderer:
                 angle1 = self._get_planet_angle(planet1['longitude'])
                 angle2 = self._get_planet_angle(planet2['longitude'])
                 
-                # Use inner radius for cleaner aspect lines
-                inner_radius = planet_radius - 60
+                # Use inner radius for cleaner aspect lines, but make them more visible
+                inner_radius = planet_radius - 50
                 
                 x1 = self.center_x + inner_radius * math.cos(math.radians(angle1))
                 y1 = self.center_y + inner_radius * math.sin(math.radians(angle1))
@@ -557,12 +592,36 @@ class ChartRenderer:
                 y2 = self.center_y + inner_radius * math.sin(math.radians(angle2))
 
                 color = clean_aspect_colors.get(aspect_type, '#95a5a6')
-                opacity = 0.7 if aspect_type in ['conjunction', 'opposition', 'trine', 'square'] else 0.5
+                
+                # Enhanced line styling based on aspect importance
+                if aspect_type in ['conjunction', 'opposition']:
+                    stroke_width = 2.5
+                    opacity = 0.8
+                elif aspect_type in ['trine', 'square']:
+                    stroke_width = 2.0
+                    opacity = 0.7
+                else:
+                    stroke_width = 1.5
+                    opacity = 0.6
+                
+                # Add dash pattern for certain aspects
+                dash_array = None
+                if aspect_type == 'quincunx':
+                    dash_array = '5,3'
+                elif aspect_type == 'semisextile':
+                    dash_array = '3,2'
+                
+                line_style = {
+                    'stroke': color,
+                    'stroke_width': stroke_width,
+                    'stroke_opacity': opacity
+                }
+                
+                if dash_array:
+                    line_style['stroke_dasharray'] = dash_array
                 
                 self.dwg.add(self.dwg.line(
                     start=(x1, y1),
                     end=(x2, y2),
-                    stroke=color,
-                    stroke_width=1.5,
-                    stroke_opacity=opacity
+                    **line_style
                 ))
