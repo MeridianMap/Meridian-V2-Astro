@@ -18,7 +18,10 @@ PLANET_SYMBOLS = {
     'sun': '☉', 'moon': '☽', 'mercury': '☿', 'venus': '♀', 'mars': '♂',
     'jupiter': '♃', 'saturn': '♄', 'uranus': '♅', 'neptune': '♆', 'pluto': '♇',
     'north_node': '☊', 'south_node': '☋', 'chiron': '⚷', 'ascendant': 'ASC',
-    'midheaven': 'MC', 'descendant': 'DSC', 'imum_coeli': 'IC'
+    'midheaven': 'MC', 'descendant': 'DSC', 'imum_coeli': 'IC',
+    # Asteroids and additional celestial objects
+    'ceres': '⚳', 'pallas athena': '⚴', 'juno': '⚵', 'vesta': '⚶',
+    'pholus': '⚸', 'lunar node': '☊', 'black moon lilith': '⚹'
 }
 
 ZODIAC_SIGNS = {

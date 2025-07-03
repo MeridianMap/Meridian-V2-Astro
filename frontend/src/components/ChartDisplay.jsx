@@ -7,7 +7,10 @@ import './ChartDisplay.css';
 const PLANET_SYMBOLS = {
   '☉': 'Sun', '☽': 'Moon', '☿': 'Mercury', '♀': 'Venus', '♂': 'Mars',
   '♃': 'Jupiter', '♄': 'Saturn', '♅': 'Uranus', '♆': 'Neptune', '♇': 'Pluto',
-  '☊': 'North Node', '☋': 'South Node', '⚷': 'Chiron'
+  '☊': 'North Node', '☋': 'South Node', '⚷': 'Chiron',
+  // Asteroids and additional celestial objects
+  '⚳': 'Ceres', '⚴': 'Pallas Athena', '⚵': 'Juno', '⚶': 'Vesta',
+  '⚸': 'Pholus', '⚹': 'Black Moon Lilith'
 };
 
 const ANGLE_NAMES = {
