@@ -9,7 +9,6 @@ from svgwrite.base import Title
 import math
 import logging
 from typing import Dict, List, Tuple, Any, Optional
-import io
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +56,8 @@ def generate_chart_svg(chart_data, chart_config):
         # Debug logging
         logger.info(f"Chart data summary - Houses: {len(chart_data.get('houses', []))}, Planets: {len(chart_data.get('planets', []))}, Aspects: {len(chart_data.get('aspects', []))}")
 
-        svg_io = io.StringIO()
-        dwg = svgwrite.Drawing(stringio=svg_io, size=(width, height))
+        # Create SVG drawing without stringio parameter to avoid deployment issues
+        dwg = svgwrite.Drawing(size=(width, height))
         dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), fill='white'))
 
         renderer = ChartRenderer(dwg, width, height, chart_config, chart_data)
@@ -88,7 +87,7 @@ def generate_chart_svg(chart_data, chart_config):
         dwg.add(dwg.text(title_text, insert=(center_x, 20), text_anchor='middle', font_size=16, fill='#333'))
 
         logger.info("Chart generation completed successfully")
-        return svg_io.getvalue()
+        return dwg.tostring()
         
     except Exception as e:
         logger.error(f"Error in generate_chart_svg: {str(e)}")
