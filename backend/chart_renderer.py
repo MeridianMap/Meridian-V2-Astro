@@ -5,9 +5,10 @@ Generates SVG astrological charts for different layers using svgwrite
 """
 
 import svgwrite
-from svgwrite.base import Title
+# from svgwrite.base import Title  # Tooltip functionality disabled
 import math
 import logging
+import traceback
 from typing import Dict, List, Tuple, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ def generate_chart_svg(chart_data, chart_config):
     try:
         logger.info(f"Starting chart generation with config: {chart_config}")
         
+        # Add validation for chart_data
+        if not chart_data or not isinstance(chart_data, dict):
+            logger.error(f"Invalid chart_data: {chart_data}")
+            raise ValueError("chart_data must be a non-empty dictionary")
+        
         width = chart_config.get('width', 600)
         height = chart_config.get('height', 600)
         center_x, center_y = width / 2, height / 2
@@ -56,26 +62,43 @@ def generate_chart_svg(chart_data, chart_config):
         planet_radius = zodiac_radius - 10  # Planets just inside zodiac band, above houses
         inner_radius = house_radius - 70
 
-        # Defensive: ensure lists for all iterables, even if nested or dict
-        def ensure_list(val):
-            if isinstance(val, list):
-                return val
-            if isinstance(val, dict):
-                # Try to get 'houses', 'planets', or 'aspects' key if present
-                for k in ['houses', 'planets', 'aspects']:
-                    if k in val and isinstance(val[k], list):
-                        return val[k]
+        # Improved defensive data extraction
+        def safe_extract_data(data, key):
+            """Safely extract list data from potentially nested structures"""
+            if not data or not isinstance(data, dict):
                 return []
-            if val is None:
+            
+            value = data.get(key, [])
+            
+            # If value is None, return empty list
+            if value is None:
                 return []
-            return list(val) if hasattr(val, '__iter__') else [val]
+            
+            # If value is already a list, return it
+            if isinstance(value, list):
+                return value
+            
+            # If value is a dict, try to find nested list
+            if isinstance(value, dict):
+                # Look for common nested keys
+                for nested_key in [key, 'data', 'items']:
+                    if nested_key in value and isinstance(value[nested_key], list):
+                        return value[nested_key]
+                return []
+            
+            # Try to convert to list if it's iterable
+            try:
+                return list(value) if hasattr(value, '__iter__') and not isinstance(value, str) else []
+            except:
+                return []
 
-        planets = ensure_list(chart_data.get('planets'))
-        houses = ensure_list(chart_data.get('houses'))
-        aspects = ensure_list(chart_data.get('aspects'))
+        planets = safe_extract_data(chart_data, 'planets')
+        houses = safe_extract_data(chart_data, 'houses')
+        aspects = safe_extract_data(chart_data, 'aspects')
 
         # Debug logging
         logger.info(f"Chart data summary - Houses: {len(houses)}, Planets: {len(planets)}, Aspects: {len(aspects)}")
+        logger.debug(f"Chart data keys: {list(chart_data.keys())}")
 
         # Create SVG drawing with clean white background
         dwg = svgwrite.Drawing(size=(width, height))
@@ -123,7 +146,6 @@ def generate_chart_svg(chart_data, chart_config):
         logger.error(f"Error in generate_chart_svg: {str(e)}")
         logger.error(f"Chart data keys: {list(chart_data.keys()) if chart_data else 'None'}")
         logger.error(f"Chart config: {chart_config}")
-        import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise
 
