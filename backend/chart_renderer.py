@@ -473,7 +473,7 @@ class ChartRenderer:
             'neptune': '#9b59b6',
             'pluto': '#795548'
         }
-        from svgwrite.container import Title
+        from svgwrite.base import Title
         for i, planet in enumerate(planets):
             if 'longitude' not in planet or 'name' not in planet:
                 continue
