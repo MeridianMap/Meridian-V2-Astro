@@ -14,7 +14,11 @@ COPY frontend ./frontend
 
 # Set build-time environment variables for Vite
 ARG VITE_GEOAPIFY_API_KEY
+ARG VITE_ACCESS_PASSWORD
+ARG VITE_REQUIRE_AUTH
 ENV VITE_GEOAPIFY_API_KEY=${VITE_GEOAPIFY_API_KEY}
+ENV VITE_ACCESS_PASSWORD=${VITE_ACCESS_PASSWORD}
+ENV VITE_REQUIRE_AUTH=${VITE_REQUIRE_AUTH}
 
 # Build the frontend with environment variables available
 RUN cd frontend && npm run build

@@ -14,3 +14,7 @@ services:
         value: '5000'
       - key: VITE_GEOAPIFY_API_KEY
         value: 89b7ba6d03ca4cfc871fac9f5d3dade0
+      - key: VITE_ACCESS_PASSWORD
+        value: explore
+      - key: VITE_REQUIRE_AUTH
+        value: 'true'
