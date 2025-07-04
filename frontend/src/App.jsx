@@ -85,16 +85,49 @@ function App() {
   })  // Replace chart, astro, transit, and CCG state/handlers with hooks
   const { response, loadingStep: chartLoading, error, fetchChart, setError } = useChartData(timeManager);
   const { astroData, setAstroData } = useAstroData(layerManager, forceMapUpdate);
-  const { isTransitEnabled, fetchTransits, loadingStep: transitLoading } = useTransitData(layerManager, forceMapUpdate, timeManager);
+  const { isTransitEnabled, fetchTransits, loadingStep: transitLoading } = useTransitData(layerManager, forceMapUpdate);
   const { fetchCCG, loadingStep: ccgLoading } = useCCGData(layerManager, forceMapUpdate);
   const { fetchHumanDesign, loadingStep: hdLoading } = useHumanDesignData(layerManager, forceMapUpdate);
 
-  // Enhanced progress tracking
+  // Enhanced progress tracking with detailed steps
   const [overallProgress, setOverallProgress] = useState({
     step: null,
     percentage: 0,
-    message: ''
+    message: '',
+    layerStatuses: {
+      natal: { status: 'pending', progress: 0, message: '' },
+      transit: { status: 'pending', progress: 0, message: '' },
+      ccg: { status: 'pending', progress: 0, message: '' },
+      humanDesign: { status: 'pending', progress: 0, message: '' }
+    }
   });
+
+  // Helper function to update individual layer progress
+  const updateLayerProgress = (layerName, status, progress, message) => {
+    setOverallProgress(prev => ({
+      ...prev,
+      layerStatuses: {
+        ...prev.layerStatuses,
+        [layerName]: { status, progress, message }
+      }
+    }));
+  };
+
+  // Helper function to calculate overall progress from layer statuses
+  const calculateOverallProgress = (layerStatuses) => {
+    const layers = Object.values(layerStatuses);
+    const totalProgress = layers.reduce((sum, layer) => sum + layer.progress, 0);
+    const averageProgress = totalProgress / layers.length;
+    const completedLayers = layers.filter(layer => layer.status === 'completed').length;
+    const failedLayers = layers.filter(layer => layer.status === 'failed').length;
+    
+    return {
+      percentage: Math.round(averageProgress),
+      completedLayers,
+      failedLayers,
+      totalLayers: layers.length
+    };
+  };
 
   // Combine all loading states for display
   const activeLoadingStep = overallProgress.step || chartLoading || transitLoading || ccgLoading || hdLoading;
@@ -272,53 +305,181 @@ function App() {
     hermetic_lot: 'Hermetic Lots',
     parans: 'Parans',  };
   
-  // Form submit handler
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Consolidated chart generation handler with enhanced progress tracking
+  const handleConsolidatedGeneration = async (formData) => {
+    const errors = [];
     
     try {
-      // Step 1: Calculate natal chart
-      setOverallProgress({ step: 'ephemeris', percentage: 20, message: 'Calculating natal ephemeris...' });
+      // Reset all layer statuses
+      setOverallProgress({
+        step: 'starting',
+        percentage: 0,
+        message: 'Initializing chart generation...',
+        layerStatuses: {
+          natal: { status: 'pending', progress: 0, message: 'Waiting to start...' },
+          transit: { status: 'pending', progress: 0, message: 'Waiting to start...' },
+          ccg: { status: 'pending', progress: 0, message: 'Waiting to start...' },
+          humanDesign: { status: 'pending', progress: 0, message: 'Waiting to start...' }
+        }
+      });
+
+      // Step 1: Generate Natal Chart (Priority: First, 0-25%)
+      updateLayerProgress('natal', 'processing', 10, 'Calculating ephemeris...');
+      setOverallProgress(prev => ({ ...prev, step: 'natal_ephemeris', percentage: 5, message: 'Step 1/4: Calculating natal ephemeris...' }));
+      
       const chartData = await fetchChart(formData);
       
       if (chartData) {
-        // Step 2: Use astrocartography data from chart response
-        setOverallProgress({ step: 'astro', percentage: 60, message: 'Processing astrocartography lines...' });
+        updateLayerProgress('natal', 'processing', 80, 'Processing astrocartography...');
+        setOverallProgress(prev => ({ ...prev, step: 'natal_astro', percentage: 15, message: 'Step 1/4: Processing natal astrocartography...' }));
         
-        // Set the astrocartography data from the chart response instead of making another API call
         if (chartData.astrocartography) {
-          console.log('🎯 Setting astrocartography data from chart response:', {
+          console.log('🎯 Setting natal astrocartography data:', {
             features: chartData.astrocartography.features?.length || 0,
             dataKeys: Object.keys(chartData.astrocartography)
           });
           
-          console.log('🎯 Natal Features Sample (first 3):', chartData.astrocartography.features?.slice(0, 3).map(f => ({
-            planet: f.properties?.planet,
-            layer: f.properties?.layer,
-            lineType: f.properties?.line_type,
-            coordinates: f.geometry?.coordinates?.[0]?.[0] // First coordinate
-          })));
-          
           setAstroData(chartData.astrocartography);
-          // Set the data in layer manager
           layerManager.setLayerData('natal', chartData.astrocartography);
+          updateLayerProgress('natal', 'completed', 100, 'Natal chart complete!');
           forceMapUpdate();
         } else {
-          console.log('❌ No astrocartography data in chart response');
+          updateLayerProgress('natal', 'failed', 0, 'No astrocartography data');
+          errors.push('Natal chart: No astrocartography data');
         }
-        
-        // Step 3: Complete
-        setOverallProgress({ step: 'done', percentage: 100, message: 'Chart generation complete!' });
-        
-        // Clear progress after a short delay
-        setTimeout(() => {
-          setOverallProgress({ step: null, percentage: 0, message: '' });
-        }, 2000);
+      } else {
+        updateLayerProgress('natal', 'failed', 0, 'Chart generation failed');
+        errors.push('Natal chart generation failed');
       }
+      
+      setOverallProgress(prev => ({ ...prev, percentage: 25, message: 'Step 1/4: Natal chart complete! Starting other layers...' }));
+
+      // Steps 2-4: Generate all other layers in parallel for maximum efficiency
+      const layerPromises = [];
+      
+      // Step 2: Transit Layer (25% - 45%)
+      updateLayerProgress('transit', 'processing', 20, 'Calculating transit ephemeris...');
+      layerPromises.push(
+        fetchTransits(formData, new Date()).then(() => {
+          updateLayerProgress('transit', 'completed', 100, 'Transit layer complete!');
+          console.log('✅ Transit layer completed successfully');
+        }).catch(error => {
+          console.error('❌ Transit generation failed:', error);
+          updateLayerProgress('transit', 'failed', 0, `Failed: ${error.message}`);
+          errors.push('Transit layer generation failed');
+        })
+      );
+      
+      // Step 3: CCG Layer (50% - 70%)
+      updateLayerProgress('ccg', 'processing', 20, 'Calculating CCG ephemeris...');
+      layerPromises.push(
+        fetchCCG(formData, ccgDate, ccgLineToggles).then(() => {
+          updateLayerProgress('ccg', 'completed', 100, 'CCG layer complete!');
+          console.log('✅ CCG layer completed successfully');
+        }).catch(error => {
+          console.error('❌ CCG generation failed:', error);
+          updateLayerProgress('ccg', 'failed', 0, `Failed: ${error.message}`);
+          errors.push('CCG layer generation failed');
+        })
+      );
+      
+      // Step 4: Human Design Layer (75% - 95%)
+      updateLayerProgress('humanDesign', 'processing', 20, 'Calculating Human Design chart...');
+      layerPromises.push(
+        fetchHumanDesign(formData, chartData?.coordinates).then(() => {
+          updateLayerProgress('humanDesign', 'completed', 100, 'Human Design layer complete!');
+          layerManager.setLayerVisible('HD_DESIGN', false); // Keep HD hidden initially
+          console.log('✅ Human Design layer completed successfully');
+        }).catch(error => {
+          console.error('❌ Human Design generation failed:', error);
+          updateLayerProgress('humanDesign', 'failed', 0, `Failed: ${error.message}`);
+          errors.push('Human Design layer generation failed');
+        })
+      );
+      
+      // Update progress as layers are processing
+      setOverallProgress(prev => ({ ...prev, step: 'parallel_layers', percentage: 30, message: 'Steps 2-4: Generating Transit, CCG, and Human Design layers in parallel...' }));
+      
+      // Monitor progress while waiting for parallel operations
+      const progressInterval = setInterval(() => {
+        setOverallProgress(prev => {
+          const progress = calculateOverallProgress(prev.layerStatuses);
+          return {
+            ...prev,
+            percentage: Math.max(25, progress.percentage), // Ensure we're at least 25% after natal
+            message: `Processing ${progress.totalLayers - progress.completedLayers - progress.failedLayers} layers... (${progress.completedLayers}/${progress.totalLayers} complete)`
+          };
+        });
+      }, 500);
+      
+      // Wait for all parallel operations to complete
+      await Promise.allSettled(layerPromises);
+      clearInterval(progressInterval);
+      
+      // Step 5: Finalize (100%)
+      setOverallProgress(prev => {
+        const progress = calculateOverallProgress(prev.layerStatuses);
+        return {
+          ...prev,
+          step: 'finalizing',
+          percentage: 95,
+          message: `Step 5/5: Finalizing... (${progress.completedLayers}/${progress.totalLayers} layers successful)`
+        };
+      });
+      
+      // Ensure only natal lines are visible by default
+      layerManager.setLayerVisible('natal', true);
+      layerManager.setLayerVisible('transit', false);
+      layerManager.setLayerVisible('CCG', false);
+      layerManager.setLayerVisible('HD_DESIGN', false);
+      
+      forceMapUpdate();
+      
+      // Calculate final results
+      const finalProgress = calculateOverallProgress(overallProgress.layerStatuses);
+      let completionMessage = `Chart generation complete! ✅ ${finalProgress.completedLayers}/${finalProgress.totalLayers} layers successful`;
+      if (errors.length > 0) {
+        completionMessage += ` ❌ ${finalProgress.failedLayers} failed: ${errors.join(', ')}`;
+      }
+      
+      setOverallProgress(prev => ({ ...prev, step: 'complete', percentage: 100, message: completionMessage }));
+      
+      // Clear progress after delay
+      setTimeout(() => {
+        setOverallProgress({
+          step: null,
+          percentage: 0,
+          message: '',
+          layerStatuses: {
+            natal: { status: 'pending', progress: 0, message: '' },
+            transit: { status: 'pending', progress: 0, message: '' },
+            ccg: { status: 'pending', progress: 0, message: '' },
+            humanDesign: { status: 'pending', progress: 0, message: '' }
+          }
+        });
+      }, 4000);
+      
     } catch (error) {
-      setOverallProgress({ step: null, percentage: 0, message: '' });
-      console.error('Chart generation failed:', error);
+      setOverallProgress({
+        step: null,
+        percentage: 0,
+        message: '',
+        layerStatuses: {
+          natal: { status: 'pending', progress: 0, message: '' },
+          transit: { status: 'pending', progress: 0, message: '' },
+          ccg: { status: 'pending', progress: 0, message: '' },
+          humanDesign: { status: 'pending', progress: 0, message: '' }
+        }
+      });
+      console.error('Consolidated chart generation failed:', error);
+      setError('Chart generation failed. Please try again.');
     }
+  };
+
+  // Form submit handler - now calls consolidated generation
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await handleConsolidatedGeneration(formData);
   };  // Restore handleGenerateCCG for CCGControls
   const handleGenerateCCG = async () => {
     try {
@@ -359,43 +520,15 @@ function App() {
     }
   };
 
-  // Demo chart handler
+  // Demo chart handler - now uses consolidated generation
   const handleDemoChart = async (demoData) => {
     console.log('Loading demo chart:', demoData);
     
     // Update form data with demo values
     setFormData(demoData);
 
-    // Generate the chart automatically
-    try {
-      setOverallProgress({ step: 'ephemeris', percentage: 20, message: `Generating demo chart for ${demoData.name}...` });
-      const chartData = await fetchChart(demoData);
-      
-      if (chartData) {
-        setOverallProgress({ step: 'astro', percentage: 60, message: 'Processing demo astrocartography...' });
-        
-        if (chartData.astrocartography) {
-          console.log('🎯 Setting demo astrocartography data:', {
-            features: chartData.astrocartography.features?.length || 0,
-            dataKeys: Object.keys(chartData.astrocartography)
-          });
-          
-          setAstroData(chartData.astrocartography);
-          layerManager.setLayerData('natal', chartData.astrocartography);
-          forceMapUpdate();
-        }
-        
-        setOverallProgress({ step: 'done', percentage: 100, message: `Demo chart for ${demoData.name} complete!` });
-        
-        setTimeout(() => {
-          setOverallProgress({ step: null, percentage: 0, message: '' });
-        }, 2000);
-      }
-    } catch (error) {
-      setOverallProgress({ step: null, percentage: 0, message: '' });
-      console.error('Demo chart generation failed:', error);
-      setError(`Failed to generate demo chart for ${demoData.name}. Please try again.`);
-    }
+    // Generate all layers using consolidated generation
+    await handleConsolidatedGeneration(demoData);
   };
 
   // Re-generate CCG overlay when ccgDate or line toggles change
@@ -827,9 +960,25 @@ function App() {
         setError={setError}
         error={error}
         onSubmit={handleSubmit}
-      />      {loadingStep && (
-        <div className="progress-container">
-          <div className="progress-bar">
+      />      {/* Enhanced Progress Bar with detailed layer status */}
+      {(loadingStep || overallProgress.step) && (
+        <div className="progress-container" style={{ 
+          margin: '1rem auto', 
+          maxWidth: '600px',
+          padding: '1rem',
+          background: '#f8f9fa',
+          borderRadius: '8px',
+          border: '1px solid #e9ecef'
+        }}>
+          {/* Main Progress Bar */}
+          <div className="progress-bar" style={{
+            width: '100%',
+            height: '20px',
+            backgroundColor: '#e9ecef',
+            borderRadius: '10px',
+            overflow: 'hidden',
+            marginBottom: '0.75rem'
+          }}>
             <div className="progress-fill" style={{
               width: overallProgress.percentage > 0 ? `${overallProgress.percentage}%` :
                      // Chart generation steps
@@ -846,13 +995,31 @@ function App() {
                      loadingStep === 'hd_calculation' || hdLoading === 'hd_calculation' ? '70%' :
                      // Completion states
                      loadingStep === 'done' || loadingStep === 'ccg_complete' || loadingStep === 'hd_complete' ? '100%' : 
-                     '10%'
+                     '10%',
+              height: '100%',
+              backgroundColor: overallProgress.percentage === 100 ? '#28a745' : '#007bff',
+              transition: 'width 0.3s ease',
+              borderRadius: '10px'
             }} />
           </div>
-          <span className="progress-text">
+          
+          {/* Main Status Message */}
+          <div className="progress-text" style={{
+            textAlign: 'center',
+            fontWeight: 'bold',
+            marginBottom: '0.75rem',
+            color: '#495057'
+          }}>
             {overallProgress.message || (
               <>
-                {/* Chart generation */}
+                {/* Consolidated generation steps */}
+                {loadingStep === 'natal_ephemeris' && 'Step 1/4: Calculating natal chart ephemeris...'}
+                {loadingStep === 'natal_astro' && 'Step 1/4: Generating natal astrocartography lines...'}
+                {loadingStep === 'parallel_layers' && 'Steps 2-4: Generating Transit, CCG, and Human Design layers...'}
+                {loadingStep === 'finalizing' && 'Step 5/5: Finalizing all layers...'}
+                {loadingStep === 'complete' && 'All layers generated successfully!'}
+                
+                {/* Individual chart generation (legacy) */}
                 {loadingStep === 'ephemeris' && 'Calculating natal chart ephemeris...'}
                 {loadingStep === 'astro' && 'Generating astrocartography lines...'}
                 
@@ -874,12 +1041,65 @@ function App() {
                 {loadingStep === 'hd_complete' && 'Human Design overlay generated!'}
                 
                 {/* Generic loading fallback */}
-                {!['ephemeris', 'astro', 'transit_ephemeris', 'transit_astro', 'ccg_ephemeris', 'ccg_astro', 
+                {!['natal_ephemeris', 'natal_astro', 'parallel_layers', 'finalizing', 'complete',
+                    'ephemeris', 'astro', 'transit_ephemeris', 'transit_astro', 'ccg_ephemeris', 'ccg_astro', 
                     'chart_calculation', 'hd_calculation', 'done', 'ccg_complete', 'hd_complete'].includes(loadingStep) && 
                  'Processing...'}
               </>
             )}
-          </span>
+          </div>
+
+          {/* Detailed Layer Status (only show during consolidated generation) */}
+          {overallProgress.layerStatuses && overallProgress.step && (
+            <div className="layer-status-grid" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '0.5rem',
+              fontSize: '0.85rem'
+            }}>
+              {Object.entries(overallProgress.layerStatuses).map(([layerName, status]) => (
+                <div key={layerName} style={{
+                  padding: '0.5rem',
+                  background: status.status === 'completed' ? '#d4edda' : 
+                             status.status === 'failed' ? '#f8d7da' : 
+                             status.status === 'processing' ? '#fff3cd' : '#e2e3e5',
+                  borderRadius: '4px',
+                  border: '1px solid ' + (
+                    status.status === 'completed' ? '#c3e6cb' : 
+                    status.status === 'failed' ? '#f5c6cb' : 
+                    status.status === 'processing' ? '#ffeaa7' : '#d1d3d4'
+                  )
+                }}>
+                  <div style={{ fontWeight: 'bold', textTransform: 'capitalize', marginBottom: '0.25rem' }}>
+                    {layerName === 'humanDesign' ? 'Human Design' : layerName}
+                    {status.status === 'completed' && ' ✅'}
+                    {status.status === 'failed' && ' ❌'}
+                    {status.status === 'processing' && ' ⏳'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                    {status.message}
+                  </div>
+                  {status.status === 'processing' && (
+                    <div style={{
+                      width: '100%',
+                      height: '4px',
+                      backgroundColor: '#e9ecef',
+                      borderRadius: '2px',
+                      overflow: 'hidden',
+                      marginTop: '0.25rem'
+                    }}>
+                      <div style={{
+                        width: `${status.progress}%`,
+                        height: '100%',
+                        backgroundColor: '#ffc107',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

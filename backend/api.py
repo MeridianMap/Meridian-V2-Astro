@@ -15,6 +15,7 @@ from ephemeris import calculate_chart
 from chart_renderer import generate_chart_svg
 from astrocartography import calculate_astrocartography_lines_geojson
 from location_utils import get_location_suggestions, detect_timezone_from_coordinates
+from layers.humandesign import calculate_human_design_layer
 from house_systems import (
     get_house_system_choices, get_default_house_system, 
     get_recommended_house_systems, get_house_systems_by_category,
@@ -191,6 +192,7 @@ def api_astrocartography():
     try:
         data = request.get_json()
         print(f"[DEBUG] Astrocartography API received data keys: {list(data.keys()) if data else 'None'}")
+        print(f"[DEBUG] Full request data: {data}")
         
         # Validate essential inputs (optional but safe)
         if not data.get("birth_date") or not data.get("birth_time") or not data.get("coordinates"):
@@ -253,6 +255,8 @@ def api_astrocartography():
                     if lon is None: missing.append("longitude")
                     return jsonify({"error": f"Missing required data for Human Design calculation: {missing}"}), 400
                 
+                print(f"[HD] About to calculate HD layer...")
+                
                 # Convert birth date/time to datetime
                 import datetime as dt
                 import pytz
@@ -278,8 +282,10 @@ def api_astrocartography():
                 }
                 
                 # Calculate Human Design layer
-                # results = calculate_human_design_layer(birth_dt, lat, lon, timezone, filter_options, **opts)
-                results = {"error": "Human Design layer not implemented", "features": []}
+                print(f"[HD] Calling calculate_human_design_layer function...")
+                results = calculate_human_design_layer(birth_dt, lat, lon, timezone, filter_options, **opts)
+                print(f"[HD] Function returned: {type(results)}")
+                # results = {"error": "Human Design layer not implemented", "features": []}
                 
                 print(f"[HD] Generated {len(results.get('features', []))} Human Design features")
                 return jsonify(results)

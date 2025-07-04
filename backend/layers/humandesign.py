@@ -34,11 +34,31 @@ try:
     from backend.hermetic_lots import calculate_hermetic_lots
     from backend.constants import ZODIAC_SIGNS
 except ImportError:
-    # Fallback for when running from backend directory
-    from astrocartography import generate_all_astrocartography_features
-    from ephemeris_utils import get_positions, initialize_ephemeris
-    from hermetic_lots import calculate_hermetic_lots
-    from constants import ZODIAC_SIGNS
+    # Fallback for when running from backend directory or layers subdirectory
+    import sys
+    import os
+    
+    # Add parent directory paths to sys.path
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+    
+    # Add current directory as well for relative imports
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
+    try:
+        from backend.astrocartography import generate_all_astrocartography_features
+        from backend.ephemeris_utils import get_positions, initialize_ephemeris
+        from backend.hermetic_lots import calculate_hermetic_lots
+        from backend.constants import ZODIAC_SIGNS
+    except ImportError:
+        # Final fallback - import directly
+        from astrocartography import generate_all_astrocartography_features
+        from ephemeris_utils import get_positions, initialize_ephemeris
+        from hermetic_lots import calculate_hermetic_lots
+        from constants import ZODIAC_SIGNS
 
 # Initialize Swiss Ephemeris
 initialize_ephemeris()
@@ -243,7 +263,18 @@ class HumanDesignLayer:
         chart_data = self._create_design_chart_data()
         
         try:
-            from backend.line_aspects import calculate_aspect_lines
+            # Import with robust path handling
+            try:
+                from backend.line_aspects import calculate_aspect_lines
+            except ImportError:
+                # Add path if needed
+                import sys
+                import os
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if backend_dir not in sys.path:
+                    sys.path.insert(0, backend_dir)
+                from line_aspects import calculate_aspect_lines
+            
             aspect_features = calculate_aspect_lines(chart_data)            # Apply HD tagging and modify labels
             for feature in aspect_features:
                 if 'properties' in feature:
@@ -295,7 +326,16 @@ class HumanDesignLayer:
                 lot_features = []
                 for lot in lots:
                     # Create MC/IC line features for each lot
-                    from backend.line_ic_mc import calculate_mc_line, calculate_ic_line
+                    try:
+                        from backend.line_ic_mc import calculate_mc_line, calculate_ic_line
+                    except ImportError:
+                        # Add path if needed
+                        import sys
+                        import os
+                        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                        if backend_dir not in sys.path:
+                            sys.path.insert(0, backend_dir)
+                        from line_ic_mc import calculate_mc_line, calculate_ic_line
                     
                     jd = chart_data.get('utc_time', {}).get('julian_day')
                     if jd:
@@ -332,7 +372,17 @@ class HumanDesignLayer:
         # chart_data = self._create_design_chart_data()  # Not currently used
         
         try:
-            from backend.line_parans import find_line_crossings_and_latitude_lines
+            # Import with robust path handling
+            try:
+                from backend.line_parans import find_line_crossings_and_latitude_lines
+            except ImportError:
+                # Add path if needed
+                import sys
+                import os
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if backend_dir not in sys.path:
+                    sys.path.insert(0, backend_dir)
+                from line_parans import find_line_crossings_and_latitude_lines
             
             # Get planet lines for paran calculation
             features = self.compute_planet_lines({'include_parans': False})
@@ -488,7 +538,17 @@ class HumanDesignLayer:
             Houses data dictionary
         """
         try:
-            from backend.constants import HOUSE_SYSTEMS
+            # Import with robust path handling
+            try:
+                from backend.constants import HOUSE_SYSTEMS
+            except ImportError:
+                # Add path if needed
+                import sys
+                import os
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if backend_dir not in sys.path:
+                    sys.path.insert(0, backend_dir)
+                from constants import HOUSE_SYSTEMS
             
             hsys = HOUSE_SYSTEMS.get(house_system.lower(), b'W')
             houses, ascmc = swe.houses(jd_design, self.lat, self.lon, hsys)

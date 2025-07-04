@@ -1,74 +1,88 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useState, useCallback } from 'react';
 
-export default function useTransitData(layerManager, forceMapUpdate, timeManager) {
-  const [transitData, setTransitData] = useState(null);
-  const [isTransitEnabled, setIsTransitEnabled] = useState(false);
+export default function useTransitData(layerManager, forceMapUpdate) {
   const [loadingStep, setLoadingStep] = useState(null);
-  const [error, setError] = useState(null);
+  const [isTransitEnabled, setIsTransitEnabled] = useState(false);
 
-  const fetchTransits = async (formData, currentTransitDateTime) => {
-    if (!timeManager.isReadyForTransits()) {
-      setError('Natal chart must be generated first before calculating transits.');
-      return;
-    }
+  const fetchTransits = useCallback(async (formData, customDateTime = null) => {
     try {
       setLoadingStep('transit_ephemeris');
-      console.log('🟪 fetchTransits called with:', { formData, currentTransitDateTime });
       
-      const targetDateTime = currentTransitDateTime;
-      const year = targetDateTime.getFullYear();
-      const month = String(targetDateTime.getMonth() + 1).padStart(2, '0');
-      const day = String(targetDateTime.getDate()).padStart(2, '0');
-      const hours = String(targetDateTime.getHours()).padStart(2, '0');
-      const minutes = String(targetDateTime.getMinutes()).padStart(2, '0');
+      const transitDateTime = customDateTime || new Date();
       
-      const transitPayload = {
-        name: `${formData.name || 'Transit'} - Transits`,
-        birth_date: `${year}-${month}-${day}`,
-        birth_time: `${hours}:${minutes}`,
+      // For transits, we calculate a chart for the current/transit time at the birth location
+      const transitData = {
+        birth_date: transitDateTime.toISOString().split('T')[0], // Use transit date as birth_date
+        birth_time: transitDateTime.toTimeString().split(' ')[0].substring(0, 5), // Use transit time as birth_time
         birth_city: formData.birth_city,
-        birth_state: formData.birth_state,
-        birth_country: formData.birth_country,
+        birth_state: formData.birth_state || '',
+        birth_country: formData.birth_country || '',
         timezone: formData.timezone,
-        use_extended_planets: true,
-        layer_type: 'transit' // Add layer type for backend tagging
+        coordinates: formData.coordinates,
+        house_system: formData.house_system || 'whole_sign',
+        use_extended_planets: true
       };
+
+      console.log('🔄 Fetching transit data with:', transitData);
+
+      // Use the same endpoint as CCG (calculate chart for transit time)
+      const response = await fetch('/api/calculate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transitData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Transit API error: ${response.status} - ${errorText}`);
+      }
+
+      setLoadingStep('transit_astro');
+      const chartData = await response.json();
       
-      console.log('🟪 Transit API payload:', transitPayload);
-      const transitChartResult = await axios.post('/api/calculate', transitPayload);
-      console.log('🟪 Transit chart result:', transitChartResult.data);
-      
-      // Use the astrocartography data from the chart response
-      if (transitChartResult.data.astrocartography) {
-        // Tag all features with transit layer type
-        const taggedData = {
-          ...transitChartResult.data.astrocartography,
-          features: transitChartResult.data.astrocartography.features.map(f => ({
+      console.log('🎯 Transit chart data received:', {
+        features: chartData.astrocartography?.features?.length || 0,
+        hasAstrocartography: !!chartData.astrocartography
+      });
+
+      // Set the transit data in layer manager
+      if (chartData.astrocartography && chartData.astrocartography.features) {
+        // Tag all features as transit layer
+        const transitAstroData = {
+          ...chartData.astrocartography,
+          features: chartData.astrocartography.features.map(f => ({
             ...f,
             properties: {
               ...f.properties,
-              layer: 'transit'
+              layer: 'TRANSIT'
             }
           }))
         };
         
-        layerManager.setLayerData('transit', taggedData);
+        layerManager.setLayerData('transit', transitAstroData);
         layerManager.setLayerVisible('transit', true);
         setIsTransitEnabled(true);
         forceMapUpdate();
-        console.log('🟪 Transit data set with', taggedData.features.length, 'features');
+        console.log('✅ Transit layer data set and made visible');
       } else {
-        console.log('🟪 No astrocartography data in transit response');
+        console.log('❌ No transit astrocartography data received');
       }
-      
-      setLoadingStep('done');
-    } catch (err) {
-      console.error('🟪 Transit generation error:', err);
-      setError(`Failed to generate transit data: ${err.message}`);
-      setLoadingStep(null);
-    }
-  };
 
-  return { transitData, isTransitEnabled, loadingStep, error, fetchTransits, setTransitData };
+      setLoadingStep(null);
+      return chartData.astrocartography;
+      
+    } catch (error) {
+      setLoadingStep(null);
+      console.error('Transit generation failed:', error);
+      throw error;
+    }
+  }, [layerManager, forceMapUpdate]);
+
+  return {
+    isTransitEnabled,
+    fetchTransits,
+    loadingStep
+  };
 }

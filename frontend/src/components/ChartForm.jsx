@@ -134,7 +134,7 @@ function ChartForm({ formData, setFormData, setChartData, setLoading, setProgres
         )}
       </div>
       
-      <button type="submit">Generate Chart</button>
+      <button type="submit">Generate All Charts</button>
       {error && <p style={{ color: 'red', marginTop: '1rem' }}>{error}</p>}
     </form>
   );
