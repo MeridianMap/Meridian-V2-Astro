@@ -130,7 +130,7 @@ DEFAULT_ORB_POLICY = {
 MAJOR_ASPECTS = {"con", "opp", "squ", "tri", "sex"}
 
 # Explicitly forbidden aspects (removed from v3.3)
-FORBIDDEN_ASPECTS = {"qui", "ssq", "sos", "ssx"}
+FORBIDDEN_ASPECTS = {"qui", "ssq", "sos", "semis", "sesqui"}
 
 # Gate range for Human Design validation
 GATE_RANGE = range(1, 65)

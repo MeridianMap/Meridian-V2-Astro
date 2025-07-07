@@ -223,6 +223,8 @@ function App() {
   // UI toggles for JSON display
   const [showJson, setShowJson] = useState(false);
   const [showAstroJson, setShowAstroJson] = useState(false);
+  const [showGptJson, setShowGptJson] = useState(false);
+  const [gptData, setGptData] = useState(null);
   // Progress/animation indicator
   // Natal/planet toggles
   const [lineToggles, setLineToggles] = useState({
@@ -531,13 +533,57 @@ function App() {
     await handleConsolidatedGeneration(demoData);
   };
 
-  // Re-generate CCG overlay when ccgDate or line toggles change
-  useEffect(() => {
-    if (layerManager.isLayerVisible('CCG')) {
-      handleGenerateCCG();
+  // Handle GPT format generation
+  const handleGptFormat = async () => {
+    // Check if we have the required form data
+    if (!formData.birth_date || !formData.birth_time || !formData.birth_city) {
+      alert('Please fill out the birth information first and generate a chart before using GPT format.');
+      return;
     }
-    // eslint-disable-next-line
-  }, [ccgDate, ccgLineToggles]); // Also re-generate when line toggles change
+
+    if (showGptJson) {
+      // If already showing, just hide it
+      setShowGptJson(false);
+      return;
+    }
+
+    try {
+      console.log('Sending GPT format request with data:', formData);
+      
+      // Call the GPT comprehensive endpoint
+      const gptResponse = await fetch('/api/gpt/comprehensive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          birth_date: formData.birth_date,
+          birth_time: formData.birth_time,
+          birth_city: formData.birth_city,
+          birth_state: formData.birth_state,
+          birth_country: formData.birth_country,
+          timezone: formData.timezone,
+          house_system: formData.house_system || 'whole_sign',
+          coordinates: formData.coordinates
+        })
+      });
+
+      if (!gptResponse.ok) {
+        const errorText = await gptResponse.text();
+        throw new Error(`GPT formatting failed: ${gptResponse.status} - ${errorText}`);
+      }
+
+      const gptResult = await gptResponse.json();
+      console.log('GPT formatted data:', gptResult);
+      
+      setGptData(gptResult);
+      setShowGptJson(true);
+      
+    } catch (error) {
+      console.error('Error formatting for GPT:', error);
+      alert(`Failed to format data for GPT: ${error.message}`);
+    }
+  };
 
   // Merged/filtered data for map
   const mergedFilteredData = React.useMemo(() => {
@@ -913,6 +959,14 @@ function App() {
           >
             {showAstroJson ? 'Hide' : 'Show'} Astrocartography JSON
           </button>
+          <button
+            onClick={handleGptFormat}
+            className="json-button gpt-button"
+            disabled={!response}
+            title="Format chart data for AI interpretation"
+          >
+            {showGptJson ? 'Hide' : 'Show'} GPT Format
+          </button>
         </div>
       )}
       {/* JSON output blocks */}
@@ -945,6 +999,34 @@ function App() {
         }}>
           {JSON.stringify(astroData, null, 2)}
         </pre>
+      )}
+      {showGptJson && gptData && (
+        <div style={{ margin: '0 auto 0.5rem auto', width: '95%' }}>
+          <div style={{
+            background: '#1a4a3a',
+            color: '#fff',
+            padding: '8px 12px',
+            borderRadius: '4px 4px 0 0',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            borderBottom: '2px solid #2d8659'
+          }}>
+            🤖 GPT-Optimized Format (AI-Ready Data)
+          </div>
+          <pre style={{
+            maxHeight: 400,
+            overflow: 'auto',
+            background: '#1a3d2e',
+            color: '#a8f5c7',
+            padding: 12,
+            borderRadius: '0 0 4px 4px',
+            fontSize: 11,
+            margin: 0,
+            border: '1px solid #2d8659'
+          }}>
+            {JSON.stringify(gptData, null, 2)}
+          </pre>
+        </div>
       )}
       <h1>Meridian V2</h1>
       
@@ -1176,7 +1258,7 @@ function App() {
               bodyToggles={bodyToggles}
               setBodyToggles={setBodyToggles}
               showBodyAccordion={showBodyAccordion}
-              setShowBodyAccordion={setShowBodyAccordion}
+              setShowBodyAccordion={setCCGShowBodyAccordion}
             />
             {/* CCG Controls Section */}
             <CCGControls

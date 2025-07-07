@@ -1,0 +1,521 @@
+openapi: 3.0.0
+info:
+  title: Meridian Astrology GPT API
+  description: |
+    Comprehensive astrology calculations optimized for AI interpretation.
+    
+    This API provides:
+    - Location validation and coordinate detection
+    - Natal chart calculations with planetary positions, houses, and aspects
+    - Current transit calculations for timing and present influences
+    - Human Design calculations (88 solar arc degrees prior to birth)
+    - GPT-optimized data formats for interpretation
+    
+    All endpoints return structured data designed for AI interpretation and analysis.
+  version: 2.1-gpt
+  contact:
+    name: Meridian Astrology API
+    url: https://meridian-map-v2-1.onrender.com
+
+servers:
+  - url: https://meridian-map-v2-1.onrender.com/api
+    description: Production server
+
+paths:
+  /gpt/comprehensive:
+    post:
+      operationId: getComprehensiveAstrologicalProfile
+      summary: Complete astrological profile with all calculation layers
+      description: |
+        Returns a comprehensive astrological analysis including:
+        - Natal chart (core identity and life purpose)
+        - Current transits (present moment influences and timing)
+        - Human Design chart (unconscious patterns 88 days before birth)
+        - Synthesis and interpretation framework
+        
+        This is the most complete endpoint for full astrological analysis.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthData'
+            examples:
+              basic_request:
+                summary: Basic birth data request
+                value:
+                  birth_date: "1990-06-15"
+                  birth_time: "14:30"
+                  birth_city: "Los Angeles"
+                  birth_state: "CA"
+                  birth_country: "USA"
+              coordinates_request:
+                summary: Request with coordinates
+                value:
+                  birth_date: "1985-12-25"
+                  birth_time: "09:15"
+                  birth_city: "London"
+                  birth_country: "UK"
+                  coordinates:
+                    latitude: 51.5074
+                    longitude: -0.1278
+                  timezone: "Europe/London"
+      responses:
+        '200':
+          description: Complete astrological profile successfully calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComprehensiveProfile'
+        '400':
+          description: Invalid input data or calculation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /gpt/natal-summary:
+    post:
+      operationId: getNatalChartSummary
+      summary: Core natal chart elements for interpretation
+      description: |
+        Returns essential natal chart information optimized for AI interpretation:
+        - Sun, Moon, Rising sign (core trinity)
+        - Chart ruler and significance
+        - Key planetary positions
+        - Major aspects with interpretation notes
+        - Elemental and modality emphasis
+        
+        Use this endpoint when you only need natal chart information.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthData'
+      responses:
+        '200':
+          description: Natal chart summary successfully calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NatalSummary'
+        '400':
+          description: Invalid input data or calculation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /gpt/with-transits:
+    post:
+      operationId: getNatalWithCurrentTransits
+      summary: Natal chart with current planetary influences
+      description: |
+        Returns natal chart foundation with current transit overlay:
+        - Complete natal chart analysis
+        - Current planetary positions and influences
+        - Seasonal and monthly themes
+        - Transit-to-natal comparisons
+        
+        Use this endpoint for timing-focused interpretations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthData'
+      responses:
+        '200':
+          description: Natal chart with transits successfully calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NatalWithTransits'
+        '400':
+          description: Invalid input data or calculation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /gpt/with-design:
+    post:
+      operationId: getNatalWithHumanDesign
+      summary: Natal chart with Human Design integration
+      description: |
+        Returns natal chart with Human Design overlay:
+        - Complete natal chart (conscious/personality)
+        - Design chart calculated 88 solar arc degrees prior (unconscious/genetic)
+        - Comparison between conscious and unconscious patterns
+        - Integration themes and synthesis
+        
+        Use this endpoint for deep psychological and genetic pattern analysis.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthData'
+      responses:
+        '200':
+          description: Natal chart with Human Design successfully calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NatalWithDesign'
+        '400':
+          description: Invalid input data or calculation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    BirthData:
+      type: object
+      required: 
+        - birth_date
+        - birth_time
+      properties:
+        birth_date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Birth date in YYYY-MM-DD format
+          example: "1990-06-15"
+        birth_time:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Birth time in HH:MM format (24-hour)
+          example: "14:30"
+        birth_city:
+          type: string
+          description: Birth city name
+          example: "Los Angeles"
+        birth_state:
+          type: string
+          description: State or province abbreviation
+          example: "CA"
+        birth_country:
+          type: string
+          description: Country name
+          example: "USA"
+        coordinates:
+          type: object
+          description: Optional coordinates (will geocode from city if not provided)
+          properties:
+            latitude:
+              type: number
+              minimum: -90
+              maximum: 90
+              example: 34.0522
+            longitude:
+              type: number
+              minimum: -180
+              maximum: 180
+              example: -118.2437
+        timezone:
+          type: string
+          description: IANA timezone identifier (will auto-detect if not provided)
+          example: "America/Los_Angeles"
+        house_system:
+          type: string
+          enum: 
+            - "whole_sign"
+            - "placidus"
+            - "koch"
+            - "equal"
+            - "campanus"
+            - "regiomontanus"
+          default: "whole_sign"
+          description: House system for calculations
+          example: "whole_sign"
+
+    ComprehensiveProfile:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            formatter_version:
+              type: string
+              example: "1.0"
+            calculation_timestamp:
+              type: string
+              format: date-time
+            data_sources:
+              type: array
+              items:
+                type: string
+                enum: ["natal", "transit", "design"]
+            optimization_level:
+              type: string
+              example: "gpt_digest"
+        birth_profile:
+          $ref: '#/components/schemas/BirthProfile'
+        natal:
+          $ref: '#/components/schemas/NatalSection'
+        transit:
+          $ref: '#/components/schemas/TransitSection'
+        design:
+          $ref: '#/components/schemas/DesignSection'
+        synthesis:
+          type: object
+          properties:
+            available_layers:
+              type: array
+              items:
+                type: string
+            integration_approach:
+              type: object
+        interpretation_framework:
+          type: object
+          properties:
+            interpretation_sequence:
+              type: array
+              items:
+                type: string
+            focus_areas:
+              type: array
+              items:
+                type: string
+
+    NatalSummary:
+      type: object
+      properties:
+        metadata:
+          type: object
+        birth_profile:
+          $ref: '#/components/schemas/BirthProfile'
+        natal:
+          $ref: '#/components/schemas/NatalSection'
+        interpretation_framework:
+          type: object
+
+    NatalWithTransits:
+      type: object
+      properties:
+        metadata:
+          type: object
+        birth_profile:
+          $ref: '#/components/schemas/BirthProfile'
+        natal:
+          $ref: '#/components/schemas/NatalSection'
+        transit:
+          $ref: '#/components/schemas/TransitSection'
+        interpretation_framework:
+          type: object
+
+    NatalWithDesign:
+      type: object
+      properties:
+        metadata:
+          type: object
+        birth_profile:
+          $ref: '#/components/schemas/BirthProfile'
+        natal:
+          $ref: '#/components/schemas/NatalSection'
+        design:
+          $ref: '#/components/schemas/DesignSection'
+        interpretation_framework:
+          type: object
+
+    BirthProfile:
+      type: object
+      properties:
+        date:
+          type: string
+          example: "1990-06-15"
+        time:
+          type: string
+          example: "14:30"
+        location:
+          type: string
+          example: "Los Angeles, CA, USA"
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+        timezone:
+          type: string
+          example: "America/Los_Angeles"
+        house_system:
+          type: string
+          example: "whole_sign"
+
+    NatalSection:
+      type: object
+      properties:
+        tag:
+          type: string
+          example: "natal"
+        status:
+          type: string
+          example: "available"
+        core_trinity:
+          type: object
+          properties:
+            sun:
+              $ref: '#/components/schemas/PlanetEssence'
+            moon:
+              $ref: '#/components/schemas/PlanetEssence'
+            rising:
+              type: string
+              example: "Virgo"
+        chart_ruler:
+          type: object
+          properties:
+            planet:
+              type: string
+              example: "Mercury"
+            rising_sign:
+              type: string
+              example: "Virgo"
+            placement:
+              type: string
+              example: "Mercury in Gemini in House 10"
+        planetary_positions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PlanetEssence'
+        major_aspects:
+          type: array
+          items:
+            $ref: '#/components/schemas/AspectInfo'
+        chart_patterns:
+          type: object
+          properties:
+            elemental_balance:
+              type: object
+            modality_emphasis:
+              type: object
+            chart_shape:
+              type: string
+
+    TransitSection:
+      type: object
+      properties:
+        tag:
+          type: string
+          example: "transit"
+        status:
+          type: string
+          example: "available"
+        calculation_time:
+          type: string
+          format: date-time
+        current_planetary_positions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              sign:
+                type: string
+              degree:
+                type: string
+              house:
+                type: string
+        seasonal_influence:
+          type: string
+          example: "Summer Solstice - Emotional depth and nurturing"
+        monthly_themes:
+          type: array
+          items:
+            type: string
+        transit_vs_natal:
+          type: object
+        interpretation_priority:
+          type: string
+          example: "present_moment_influences_and_timing"
+
+    DesignSection:
+      type: object
+      properties:
+        tag:
+          type: string
+          example: "design"
+        status:
+          type: string
+          example: "available"
+        calculation_info:
+          type: object
+          properties:
+            method:
+              type: string
+              example: "88_solar_arc_degrees_prior"
+            time_offset:
+              type: string
+              example: "approximately_88_days_before_birth"
+            purpose:
+              type: string
+              example: "unconscious_blueprint_and_genetic_imprint"
+        design_vs_personality:
+          type: object
+          properties:
+            personality:
+              type: string
+              example: "Conscious mind (natal chart)"
+            design:
+              type: string
+              example: "Unconscious body/genetic pattern"
+            integration:
+              type: string
+              example: "Synthesis of both creates complete human design"
+        design_planetary_positions:
+          type: object
+        design_vs_natal_comparison:
+          type: object
+        interpretation_priority:
+          type: string
+          example: "unconscious_patterns_and_genetic_blueprint"
+
+    PlanetEssence:
+      type: object
+      properties:
+        sign:
+          type: string
+          example: "Gemini"
+        house:
+          type: string
+          example: "10"
+        degree:
+          type: string
+          example: "24.5°"
+        retrograde:
+          type: boolean
+          example: false
+        interpretation_key:
+          type: string
+          example: "Sun in Gemini in House 10"
+
+    AspectInfo:
+      type: object
+      properties:
+        description:
+          type: string
+          example: "Sun conjunction Mercury"
+        orb:
+          type: string
+          example: "0.8°"
+        strength:
+          type: string
+          enum: ["exact", "close", "moderate"]
+          example: "exact"
+        nature:
+          type: string
+          example: "fusion/intensity"
+        interpretation_note:
+          type: string
+          example: "Planets work together as unified energy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message describing what went wrong
+          example: "birth_date is required"

@@ -476,6 +476,32 @@ ul li:hover {
   background: #333;
 }
 
+/* GPT button special styling */
+.json-button.gpt-button {
+  background: linear-gradient(135deg, #1a4a3a, #2d8659);
+  border: 1px solid #2d8659;
+  color: #a8f5c7;
+  font-weight: 600;
+  position: relative;
+}
+
+.json-button.gpt-button:hover {
+  background: linear-gradient(135deg, #2d8659, #3ea371);
+  box-shadow: 0 2px 8px rgba(45, 134, 89, 0.3);
+}
+
+.json-button.gpt-button:disabled {
+  background: #444;
+  border-color: #666;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.json-button.gpt-button::before {
+  content: "🤖";
+  margin-right: 4px;
+}
+
 /* Responsive design for desktop */
 @media (min-width: 768px) {
   .app {
