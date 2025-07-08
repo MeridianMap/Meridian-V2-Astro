@@ -157,7 +157,40 @@ const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
   return null;
 };
 
-const AstroMap = ({ data, paransData }) => {
+// Utility function to find features within circle
+function getFeaturesWithinCircle(center, radius, features) {
+  const centerLatLng = L.latLng(center[0], center[1]);
+  const results = [];
+  features.forEach((feat) => {
+    let minDist = Infinity;
+    if (feat.geometry.type === "Point") {
+      const [lon, lat] = feat.geometry.coordinates;
+      const pt = L.latLng(lat, lon);
+      minDist = centerLatLng.distanceTo(pt);
+    } else if (feat.geometry.type === "LineString") {
+      feat.geometry.coordinates.forEach(([lon, lat]) => {
+        const pt = L.latLng(lat, lon);
+        const dist = centerLatLng.distanceTo(pt);
+        if (dist < minDist) minDist = dist;
+      });
+    } else if (feat.geometry.type === "MultiLineString") {
+      feat.geometry.coordinates.forEach(line =>
+        line.forEach(([lon, lat]) => {
+          const pt = L.latLng(lat, lon);
+          const dist = centerLatLng.distanceTo(pt);
+          if (dist < minDist) minDist = dist;
+        })
+      );
+    }
+    if (minDist <= radius) {
+      results.push({ feature: feat, distance: minDist });
+    }
+  });
+  results.sort((a, b) => a.distance - b.distance);
+  return results;
+}
+
+const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) => {
   // Add state for single highlight circle
   const [highlightCircle, setHighlightCircle] = useState(null);
   const [highlightSummary, setHighlightSummary] = useState(null);
@@ -165,6 +198,7 @@ const AstroMap = ({ data, paransData }) => {
   // Debug logging
   console.log('🗺️ AstroMap render - data features:', data?.features?.length || 0);
   console.log('🗺️ AstroMap render - transit features:', data?.features?.filter(f => f.layerName === 'transit')?.length || 0);
+  console.log('🗺️ AstroMap render - birth coordinates:', birthCoordinates);
   console.log('🗺️ AstroMap render - data structure:', {
     hasData: !!data,
     hasFeatures: !!data?.features,
@@ -185,42 +219,7 @@ const AstroMap = ({ data, paransData }) => {
   console.log('AstroMap render - data:', data);
   console.log('AstroMap render - mergedFeatures:', mergedFeatures.length);
   
-  // Show map even if no features - just empty map
-  if (!data) return <div>Loading astrocartography data…</div>;
-
-  // Utility: Find features within circle
-  function getFeaturesWithinCircle(center, radius, features) {
-    const centerLatLng = L.latLng(center[0], center[1]);
-    const results = [];
-    features.forEach((feat) => {
-      let minDist = Infinity;
-      if (feat.geometry.type === "Point") {
-        const [lon, lat] = feat.geometry.coordinates;
-        const pt = L.latLng(lat, lon);
-        minDist = centerLatLng.distanceTo(pt);
-      } else if (feat.geometry.type === "LineString") {
-        feat.geometry.coordinates.forEach(([lon, lat]) => {
-          const pt = L.latLng(lat, lon);
-          const dist = centerLatLng.distanceTo(pt);
-          if (dist < minDist) minDist = dist;
-        });
-      } else if (feat.geometry.type === "MultiLineString") {
-        feat.geometry.coordinates.forEach(line =>
-          line.forEach(([lon, lat]) => {
-            const pt = L.latLng(lat, lon);
-            const dist = centerLatLng.distanceTo(pt);
-            if (dist < minDist) minDist = dist;
-          })
-        );
-      }
-      if (minDist <= radius) {
-        results.push({ feature: feat, distance: minDist });
-      }
-    });
-    results.sort((a, b) => a.distance - b.distance);
-    return results;
-  }
-
+  // Existing useEffect for highlight summary
   useEffect(() => {
     if (highlightCircle) {
       const summary = getFeaturesWithinCircle(
@@ -228,15 +227,38 @@ const AstroMap = ({ data, paransData }) => {
         highlightCircle.radius,
         mergedFeatures
       );
-      setHighlightSummary({
+      const summaryObj = {
         center: highlightCircle.center,
         radius: highlightCircle.radius,
         features: summary,
-      });
+      };
+      setHighlightSummary(summaryObj);
+      if (onHighlightSummary) onHighlightSummary(summaryObj);
     } else {
       setHighlightSummary(null);
+      if (onHighlightSummary) onHighlightSummary(null);
     }
-  }, [highlightCircle, mergedFeatures]);
+  }, [highlightCircle, mergedFeatures, onHighlightSummary]);
+
+  // Set default highlight circle at birth location on load
+  useEffect(() => {
+    // Only set default if no circle exists and birth coordinates are available
+    if (!highlightCircle && birthCoordinates && Array.isArray(birthCoordinates) && birthCoordinates.length >= 2) {
+      const [lat, lon] = birthCoordinates;
+      if (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) {
+        const defaultCircle = {
+          id: `birth-${Date.now()}`,
+          center: [lat, lon],
+          radius: 241402 // 150 miles in meters (150 * 1.60934 * 1000)
+        };
+        setHighlightCircle(defaultCircle);
+        console.log('🎯 AstroMap - Set default highlight circle at birth location:', { lat, lon });
+      }
+    }
+  }, [birthCoordinates, highlightCircle]); // Only depend on birthCoordinates and highlightCircle
+  
+  // Show map even if no features - just empty map
+  if (!data) return <div>Loading astrocartography data…</div>;
 
   return (
     <div className="astromap-wrapper">

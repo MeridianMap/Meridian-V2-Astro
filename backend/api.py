@@ -616,7 +616,9 @@ def api_gpt_comprehensive():
         
         # Format for GPT
         gpt_formatted = format_for_gpt(natal_data, transit_data, design_data, data)
-        
+        # If astrocartography_summary is present, add it to the output as a labeled section
+        if data.get('astrocartography_summary'):
+            gpt_formatted['astrocartography'] = data['astrocartography_summary']
         return jsonify(gpt_formatted)
         
     except Exception as e:

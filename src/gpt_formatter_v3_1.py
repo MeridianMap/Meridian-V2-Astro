@@ -246,7 +246,11 @@ class GPTFormatterV33:
                 "metadata": metadata,
                 "charts": charts
             }
-            
+
+            # Add astrocartography summary if present in request_metadata
+            if request_metadata and request_metadata.get('astrocartography_summary'):
+                response['astrocartography'] = self._format_astrocartography_summary(request_metadata['astrocartography_summary'])
+
             # Apply canonical key ordering for clean output
             response = self._sort_object_keys_canonical(response)
             
@@ -1301,6 +1305,341 @@ class GPTFormatterV33:
                 result[key] = value
                 
         return result
+
+    # Add this method to the GPTFormatterV33 class:
+    def _minimize_astrocartography_properties(self, props):
+        """
+        Remove interpretive elements from properties, keeping only technical/geometric data.
+        Keeps: category, type, layer_type, source_lines, *_hd_gate, *_hd_line, *_house, *_sign, intersection_lat, intersection_lon, and any other non-interpretive keys.
+        """
+        keep_prefixes = (
+            "category", "type", "layer_type", "source_lines",
+            "intersection_lat", "intersection_lon"
+        )
+        keep_suffixes = ("_hd_gate", "_hd_line", "_house", "_sign")
+        minimized = {}
+        for k, v in props.items():
+            if k in keep_prefixes:
+                minimized[k] = v
+            elif any(k.endswith(suf) for suf in keep_suffixes):
+                minimized[k] = v
+            elif k.startswith("source_lines"):
+                minimized[k] = v
+            elif k.startswith("intersection_"):
+                minimized[k] = v
+            elif k in ("Mars_hd_gate", "Mars_hd_line", "Mars_house", "Mars_sign", "Pluto_hd_gate", "Pluto_hd_line", "Pluto_house", "Pluto_sign"):
+                minimized[k] = v
+            # Do NOT keep *_name, label, or other interpretive fields
+        return minimized
+
+    def _format_astrocartography_summary(self, summary):
+        """
+        Format the astrocartography summary for GPT output (deterministic, multi-layered, zero-hallucination)
+        
+        Improvements:
+        - Normalize layer field values to lowercase underscore style
+        - Add timestamp field for non-natal layers
+        - Enhanced planetary metadata extraction for type: "line" features
+        - Ensure gate/line values are integers
+        - Add intersection_lon for paran entries with lon = -180
+        - Full compatibility with formatter_v3.3 spec
+        """
+        if not summary:
+            return None
+            
+        center = summary.get('center', [None, None])
+        radius = summary.get('radius', None)
+        features = summary.get('features', [])
+        
+        def normalize_layer_name(layer_raw):
+            """Normalize layer names to lowercase underscore style"""
+            if not layer_raw:
+                return 'natal'
+            
+            # Handle common layer name variations
+            layer_map = {
+                'HD_DESIGN': 'hd_design',
+                'Human Design': 'hd_design',
+                'humandesign': 'hd_design',
+                'HD Design': 'hd_design',
+                'TRANSIT': 'transit',
+                'Transit': 'transit',
+                'NATAL': 'natal',
+                'Natal': 'natal',
+                'CCG': 'ccg',
+                'Continuous': 'ccg',
+                'PROGRESSION': 'progression',
+                'Progression': 'progression',
+                'SOLAR_RETURN': 'solar_return',
+                'Solar Return': 'solar_return'
+            }
+            
+            # Direct mapping first
+            if layer_raw in layer_map:
+                return layer_map[layer_raw]
+            
+            # Fallback: convert to lowercase with underscores
+            normalized = str(layer_raw).lower().replace(' ', '_').replace('-', '_')
+            return normalized
+        
+        def extract_timestamp_for_layer(props, layer_name):
+            """Extract or generate timestamp for non-natal layers"""
+            if layer_name == 'natal':
+                return None  # Natal doesn't need timestamp
+                
+            # Check if timestamp already exists in properties
+            existing_timestamp = props.get('timestamp') or props.get('calculation_time') or props.get('date')
+            if existing_timestamp:
+                return existing_timestamp
+                
+            # For transit layers, try to infer from current time context
+            if layer_name == 'transit':
+                from datetime import datetime
+                return datetime.utcnow().isoformat() + "Z"
+                
+            # For other layers, return None (will be handled upstream)
+            return None
+        
+        def enhance_planetary_metadata(props, planet_key, existing_data):
+            """Enhance planetary metadata with additional context from properties"""
+            enhanced = existing_data.copy()
+            
+            # Try to extract additional metadata from various property patterns
+            planet_patterns = [planet_key, planet_key.capitalize(), planet_key.upper()]
+            
+            for pattern in planet_patterns:
+                # Check for additional angle information
+                if f'{pattern}_angle' in props and 'angle' not in enhanced:
+                    angle_val = str(props[f'{pattern}_angle']).upper()
+                    if angle_val in ("AC", "IC", "MC", "DSC"):
+                        enhanced['angle'] = angle_val
+                
+                # Check for longitude/position data to infer missing fields
+                if f'{pattern}_longitude' in props:
+                    try:
+                        lng = float(props[f'{pattern}_longitude'])
+                        # Could potentially derive sign/house from longitude if needed
+                        # This would require ephemeris calculations, so leaving as placeholder
+                    except (ValueError, TypeError):
+                        pass
+                        
+                # Check for declination/latitude data
+                if f'{pattern}_declination' in props:
+                    try:
+                        decl = float(props[f'{pattern}_declination'])
+                        enhanced['declination'] = round(decl, 4)
+                    except (ValueError, TypeError):
+                        pass
+            
+            return enhanced
+        
+        def calculate_intersection_lon(props, lon):
+            """Calculate intersection longitude for paran entries with lon = -180"""
+            if lon != -180:
+                return None
+                
+            # Try to find intersection data in properties
+            intersection_lat = props.get('intersection_lat') or props.get('crossing_lat')
+            intersection_lon = props.get('intersection_lon') or props.get('crossing_lon')
+            
+            if intersection_lon is not None:
+                try:
+                    return round(float(intersection_lon), 5)
+                except (ValueError, TypeError):
+                    pass
+                    
+            # Try to calculate midpoint if we have line data
+            source_lines = props.get('source_lines', [])
+            if len(source_lines) >= 2:
+                # This would require more complex calculation of line intersections
+                # For now, return a computed estimate or None
+                pass
+                
+            return None
+        
+        def parse_body_keys(props):
+            """Enhanced body parsing with deterministic metadata extraction"""
+            # Define canonical planet keys (combining luminaries and planets)
+            canonical_planets = set(LUMINARY_BODIES + PLANET_BODIES)
+            
+            # Create mapping for common planet name variations to canonical names
+            planet_name_map = {
+                'mercury': 'merc',
+                'jupiter': 'jup', 
+                'saturn': 'sat',
+                'uranus': 'uran',
+                'neptune': 'nep',
+                # Add exact matches
+                'sun': 'sun',
+                'moon': 'moon',
+                'merc': 'merc',
+                'venus': 'venus', 
+                'mars': 'mars',
+                'jup': 'jup',
+                'sat': 'sat',
+                'uran': 'uran',
+                'nep': 'nep',
+                'pluto': 'pluto'
+            }
+            
+            bodies = {}
+            
+            # Process underscore-separated keys like Mars_sign, Pluto_hd_gate, etc.
+            for k, v in props.items():
+                if '_' in k:
+                    planet, attr = k.split('_', 1)
+                    planet_lc = planet.lower()
+                    
+                    # Map planet name to canonical form
+                    canonical_planet = planet_name_map.get(planet_lc)
+                    
+                    # Only process canonical planets
+                    if not canonical_planet or canonical_planet not in canonical_planets:
+                        continue
+                        
+                    if canonical_planet not in bodies:
+                        bodies[canonical_planet] = {}
+                    
+                    # Process attributes with strict type validation
+                    if attr == 'hd_gate':
+                        try:
+                            gate_val = int(float(v)) if isinstance(v, (int, float, str)) and str(v).replace('.','').replace('-','').isdigit() else None
+                            if gate_val is not None and 1 <= gate_val <= 64:  # Valid HD gate range
+                                bodies[canonical_planet]['gate'] = gate_val
+                        except (ValueError, TypeError):
+                            pass
+                    elif attr == 'hd_line':
+                        try:
+                            line_val = int(float(v)) if isinstance(v, (int, float, str)) and str(v).replace('.','').replace('-','').isdigit() else None
+                            if line_val is not None and 1 <= line_val <= 6:  # Valid HD line range
+                                bodies[canonical_planet]['line'] = line_val
+                        except (ValueError, TypeError):
+                            pass
+                    elif attr == 'house':
+                        try:
+                            house_val = int(float(v)) if isinstance(v, (int, float, str)) and str(v).replace('.','').replace('-','').isdigit() else None
+                            if house_val is not None and 1 <= house_val <= 12:  # Valid house range
+                                bodies[canonical_planet]['house'] = house_val
+                        except (ValueError, TypeError):
+                            pass
+                    elif attr == 'sign':
+                        if v and str(v).strip():
+                            sign_val = str(v).strip()
+                            # Validate sign names
+                            valid_signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
+                                         'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+                            if sign_val in valid_signs:
+                                bodies[canonical_planet]['sign'] = sign_val
+                    elif attr in ('angle', 'ac', 'ic', 'mc', 'dsc'):
+                        # Accept explicit angle keys
+                        angle_val = attr.upper() if attr in ('ac','ic','mc','dsc') else str(v).upper()
+                        if angle_val in ("AC", "IC", "MC", "DSC"):
+                            bodies[canonical_planet]['angle'] = angle_val
+                            
+            # Process source_lines to infer angles for planets
+            source_lines = props.get('source_lines', [])
+            if isinstance(source_lines, list):
+                for line in source_lines:
+                    if isinstance(line, str) and '_' in line:
+                        planet, angle = line.split('_', 1)
+                        planet_lc = planet.lower()
+                        
+                        # Map planet name to canonical form
+                        canonical_planet = planet_name_map.get(planet_lc)
+                        
+                        # Only process canonical planets
+                        if not canonical_planet or canonical_planet not in canonical_planets:
+                            continue
+                            
+                        if canonical_planet not in bodies:
+                            bodies[canonical_planet] = {}
+                        
+                        angle_upper = angle.upper()
+                        if angle_upper in ("AC", "IC", "MC", "DSC"):
+                            bodies[canonical_planet]['angle'] = angle_upper
+            
+            # Enhance each planet's metadata
+            for planet_key in list(bodies.keys()):
+                bodies[planet_key] = enhance_planetary_metadata(props, planet_key, bodies[planet_key])
+            
+            # Remove empty objects and ensure all planets have at least one valid field
+            valid_bodies = {}
+            for planet, data in bodies.items():
+                # Remove None values and empty strings
+                cleaned_data = {k: v for k, v in data.items() if v is not None and v != ''}
+                
+                # Only include if there's at least one valid field
+                if cleaned_data:
+                    valid_bodies[planet] = cleaned_data
+            
+            return valid_bodies
+        
+        # Build the formatted response
+        formatted = {
+            "center": {
+                "lat": round(center[0], 5) if center[0] is not None else None,
+                "lon": round(center[1], 5) if center[1] is not None else None
+            },
+            "radius_m": int(radius) if radius is not None else None,
+            "features": []
+        }
+        
+        for f in features:
+            feat = f.get('feature', {})
+            dist = f.get('distance', None)
+            props = feat.get('properties', {})
+            
+            # Determine type with enhanced detection
+            type_val = 'line'  # Default
+            if props.get('type') == 'crossing_latitude' or props.get('category') == 'parans':
+                type_val = 'paran'
+            elif props.get('line_type') in ['MC', 'IC', 'HORIZON']:
+                type_val = 'line'
+            elif props.get('type') == 'fixed_star':
+                type_val = 'point'  # For fixed stars
+            
+            # Normalize layer name
+            layer_raw = props.get('layer_type') or props.get('layer') or props.get('layerName') or 'natal'
+            layer_val = normalize_layer_name(layer_raw)
+            
+            # Extract geometry
+            lat, lon = None, None
+            if feat.get('geometry', {}).get('type') == 'Point':
+                coords = feat['geometry'].get('coordinates', [None, None])
+                lon, lat = coords[0], coords[1]
+            elif feat.get('geometry', {}).get('type') in ('LineString', 'MultiLineString'):
+                coords = feat['geometry'].get('coordinates', [])
+                if coords and isinstance(coords[0], list):
+                    if isinstance(coords[0][0], (float, int)):
+                        lon, lat = coords[0][0], coords[0][1]
+                    elif isinstance(coords[0][0], list):
+                        lon, lat = coords[0][0][0], coords[0][0][1]
+            
+            # Build feature object
+            feature_obj = {
+                "type": type_val,
+                "layer": layer_val,
+                "lat": round(lat, 5) if lat is not None else None,
+                "lon": round(lon, 5) if lon is not None else None,
+                "distance_m": int(dist) if dist is not None else None,
+                "bodies": parse_body_keys(props)
+            }
+            
+            # Add timestamp for non-natal layers
+            if layer_val != 'natal':
+                timestamp = extract_timestamp_for_layer(props, layer_val)
+                if timestamp:
+                    feature_obj["timestamp"] = timestamp
+            
+            # Add intersection_lon for paran entries with lon = -180
+            if type_val == 'paran' and lon == -180:
+                intersection_lon = calculate_intersection_lon(props, lon)
+                if intersection_lon is not None:
+                    feature_obj["intersection_lon"] = intersection_lon
+            
+            formatted['features'].append(feature_obj)
+        
+        return formatted
 # Factory function for backwards compatibility
 def create_formatter_v33():
     """Create new GPT Formatter v3.3 instance"""

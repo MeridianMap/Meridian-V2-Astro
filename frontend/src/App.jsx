@@ -533,6 +533,9 @@ function App() {
     await handleConsolidatedGeneration(demoData);
   };
 
+  // Highlight summary state (for GPT integration)
+  const [highlightSummary, setHighlightSummary] = useState(null);
+
   // Handle GPT format generation
   const handleGptFormat = async () => {
     // Check if we have the required form data
@@ -549,7 +552,6 @@ function App() {
 
     try {
       console.log('Sending GPT format request with data:', formData);
-      
       // Call the GPT comprehensive endpoint
       const gptResponse = await fetch('/api/gpt/comprehensive', {
         method: 'POST',
@@ -564,7 +566,8 @@ function App() {
           birth_country: formData.birth_country,
           timezone: formData.timezone,
           house_system: formData.house_system || 'whole_sign',
-          coordinates: formData.coordinates
+          coordinates: formData.coordinates,
+          astrocartography_summary: highlightSummary // <-- pass highlight summary if present
         })
       });
 
@@ -1244,7 +1247,11 @@ function App() {
 
           {/* Map Container - Full Width */}
           <div className="map-container" style={{ width: '100%', marginBottom: '1rem' }}>
-            <AstroMap data={mergedFilteredData} />
+            <AstroMap 
+              data={mergedFilteredData} 
+              onHighlightSummary={setHighlightSummary}
+              birthCoordinates={response?.coordinates}
+            />
           </div>
 
           {/* Controls Section - Two Columns Below Map */}
