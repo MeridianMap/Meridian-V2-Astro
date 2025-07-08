@@ -6,7 +6,6 @@ function CCGControls({
   forceMapUpdate,
   ccgDate,
   setCCGDate,
-  handleGenerateCCG,
   // New props for unified control
   lineToggles,
   setLineToggles,
@@ -48,25 +47,6 @@ function CCGControls({
       {/* Date Picker */}
       <div style={{ margin: '0.5rem 0', textAlign: 'center' }}>
         <CCGDateControls ccgDate={ccgDate} setCCGDate={setCCGDate} />
-      </div>
-
-      {/* Generate Button */}
-      <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          onClick={handleGenerateCCG}
-          className="control-button primary"
-          style={{
-            fontSize: '11px',
-            padding: '0.4rem 0.8rem',
-            background: '#4A90E2',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px'
-          }}
-        >
-          Generate CCG Overlay
-        </button>
       </div>
 
       {/* Feature Type Toggles - Only show when CCG layer is visible */}

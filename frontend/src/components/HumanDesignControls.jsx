@@ -43,27 +43,6 @@ function HumanDesignControls({
         </label>
       </div>
 
-      {/* Generate Button */}
-      <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          onClick={handleGenerateHD}
-          className="control-button primary"
-          disabled={loadingStep === 'hd_calculation'}
-          style={{
-            fontSize: '11px',
-            padding: '0.4rem 0.8rem',
-            background: loadingStep === 'hd_calculation' ? '#999' : '#D47AFF',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loadingStep === 'hd_calculation' ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {loadingStep === 'hd_calculation' ? 'Calculating...' : 'Generate Human Design Overlay'}
-        </button>
-      </div>
-
       {/* Feature Type Toggles - Only show when HD layer is visible */}
       {layerManager.isLayerVisible('HD_DESIGN') && (
         <>

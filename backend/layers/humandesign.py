@@ -678,6 +678,14 @@ def calculate_human_design_layer(
                 "layer_type": "HD_DESIGN",
                 "birth_datetime": birth_dt.isoformat(),
                 "design_datetime": hd_layer.design_dt.isoformat(),
+                "design_ut": {
+                    "year": hd_layer.design_dt.year,
+                    "month": hd_layer.design_dt.month,
+                    "day": hd_layer.design_dt.day,
+                    "hour": hd_layer.design_dt.hour,
+                    "minute": hd_layer.design_dt.minute,
+                    "second": hd_layer.design_dt.second
+                },
                 "total_features": len(features)
             }
         }

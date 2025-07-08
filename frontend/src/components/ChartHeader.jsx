@@ -73,6 +73,20 @@ const ChartHeader = ({ formData, response, astroData }) => {
                   fontSize: '0.85rem'
                 }}>
                   <span style={{ color: '#98d982' }}>UT sent to ephemeris:</span> <span style={{ color: '#ffb347', fontFamily: 'monospace' }}>{utString}</span>
+                  {/* Debug: Show what is in astroData.hd.properties */}
+                  {astroData.hd && astroData.hd.properties && (
+                    <pre style={{ color: '#aaa', background: 'none', fontSize: '0.7rem', margin: '4px 0 0 0', padding: 0, textAlign: 'left', whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify(astroData.hd.properties, null, 2)}
+                    </pre>
+                  )}
+                  {/* Human Design Design Chart UT */}
+                  {astroData.hd && astroData.hd.properties && astroData.hd.properties.design_ut && (
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{ color: '#D47AFF' }}>HD Design UT sent to ephemeris:</span> <span style={{ color: '#ffb347', fontFamily: 'monospace' }}>
+                        {`${astroData.hd.properties.design_ut.year}-${String(astroData.hd.properties.design_ut.month).padStart(2, '0')}-${String(astroData.hd.properties.design_ut.day).padStart(2, '0')} ${String(astroData.hd.properties.design_ut.hour).padStart(2, '0')}:${String(astroData.hd.properties.design_ut.minute).padStart(2, '0')}`}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -84,6 +98,42 @@ const ChartHeader = ({ formData, response, astroData }) => {
           </div>
         </div>
       </div>
+      {/* Human Design Chart Info Block */}
+      {astroData.hd && (
+        <div style={{ 
+          background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          border: '1px solid #444',
+          marginTop: '8px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          maxWidth: '600px',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            color: '#D47AFF', 
+            fontSize: '0.85rem', 
+            fontWeight: 600,
+            marginBottom: '6px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            🧬 Human Design Chart
+          </div>
+          <div style={{ color: '#e0e0e0', fontSize: '0.9rem', lineHeight: '1.4' }}>
+            <div style={{ marginBottom: '4px' }}>
+              <span style={{ color: '#D47AFF' }}>Design Date:</span> <span style={{ color: '#fff', fontWeight: 500 }}>{formData.birth_date}</span> • 
+              <span style={{ color: '#D47AFF' }}>Time:</span> <span style={{ color: '#fff', fontWeight: 500 }}>{formData.birth_time}</span>
+            </div>
+            <div style={{ marginBottom: '4px' }}>
+              <span style={{ color: '#D47AFF' }}>Location:</span> <span style={{ color: '#fff', fontWeight: 500 }}>{locationString}</span>
+            </div>
+            <div style={{ marginBottom: '4px' }}>
+              <span style={{ color: '#D47AFF' }}>Coordinates:</span> <span style={{ color: '#ffb347', fontFamily: 'monospace', fontSize: '0.85rem' }}>{formatCoordinates(response.coordinates)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

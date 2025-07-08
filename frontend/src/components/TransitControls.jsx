@@ -73,30 +73,7 @@ function TransitControls({
               background: '#1a1a1a',
               color: '#fff'
             }}
-          />          <button
-            onClick={async () => {
-              try {
-                console.log('Transit button clicked');
-                await handleGenerateTransits(currentTransitDateTime);
-                console.log('Transit button click completed');
-              } catch (error) {
-                console.error('Error in transit button click:', error);
-              }
-            }}
-            disabled={loadingStep !== null && loadingStep !== 'done'}
-            style={{
-              padding: '0.3rem 0.6rem',
-              fontSize: '11px',
-              background: '#ff6b35',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              opacity: loadingStep !== null && loadingStep !== 'done' ? 0.6 : 1
-            }}
-          >
-            Update
-          </button>
+          />
         </div>
       </div>
 
