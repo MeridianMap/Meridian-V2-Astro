@@ -65,9 +65,14 @@ const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
         center: [lat, lng],
         radius: 241402 // 150 miles in meters (150 * 1.60934 * 1000)
       };
-      
-      // Set the single circle to the new location
       setHighlightCircle(newCircle);
+      // Calculate zoom so the circle fits with margin
+      const circleLatLng = L.latLng(lat, lng);
+      // Add 20% margin to radius for padding
+      const fitRadius = newCircle.radius * 1.2;
+      // Calculate bounding box
+      const bounds = circleLatLng.toBounds(fitRadius * 2);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 6 });
     }
   });
   // Create gradient circle using SVG overlay
@@ -155,6 +160,7 @@ const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
 const AstroMap = ({ data, paransData }) => {
   // Add state for single highlight circle
   const [highlightCircle, setHighlightCircle] = useState(null);
+  const [highlightSummary, setHighlightSummary] = useState(null);
 
   // Debug logging
   console.log('🗺️ AstroMap render - data features:', data?.features?.length || 0);
@@ -181,6 +187,56 @@ const AstroMap = ({ data, paransData }) => {
   
   // Show map even if no features - just empty map
   if (!data) return <div>Loading astrocartography data…</div>;
+
+  // Utility: Find features within circle
+  function getFeaturesWithinCircle(center, radius, features) {
+    const centerLatLng = L.latLng(center[0], center[1]);
+    const results = [];
+    features.forEach((feat) => {
+      let minDist = Infinity;
+      if (feat.geometry.type === "Point") {
+        const [lon, lat] = feat.geometry.coordinates;
+        const pt = L.latLng(lat, lon);
+        minDist = centerLatLng.distanceTo(pt);
+      } else if (feat.geometry.type === "LineString") {
+        feat.geometry.coordinates.forEach(([lon, lat]) => {
+          const pt = L.latLng(lat, lon);
+          const dist = centerLatLng.distanceTo(pt);
+          if (dist < minDist) minDist = dist;
+        });
+      } else if (feat.geometry.type === "MultiLineString") {
+        feat.geometry.coordinates.forEach(line =>
+          line.forEach(([lon, lat]) => {
+            const pt = L.latLng(lat, lon);
+            const dist = centerLatLng.distanceTo(pt);
+            if (dist < minDist) minDist = dist;
+          })
+        );
+      }
+      if (minDist <= radius) {
+        results.push({ feature: feat, distance: minDist });
+      }
+    });
+    results.sort((a, b) => a.distance - b.distance);
+    return results;
+  }
+
+  useEffect(() => {
+    if (highlightCircle) {
+      const summary = getFeaturesWithinCircle(
+        highlightCircle.center,
+        highlightCircle.radius,
+        mergedFeatures
+      );
+      setHighlightSummary({
+        center: highlightCircle.center,
+        radius: highlightCircle.radius,
+        features: summary,
+      });
+    } else {
+      setHighlightSummary(null);
+    }
+  }, [highlightCircle, mergedFeatures]);
 
   return (
     <div className="astromap-wrapper">
@@ -244,6 +300,68 @@ const AstroMap = ({ data, paransData }) => {
           >
             Clear Circle
           </button>
+        </div>
+      )}
+      {highlightSummary && (
+        <div
+          style={{
+            position: "absolute",
+            left: "30px",
+            top: "60px",
+            zIndex: 1100,
+            background: "#23272f", // dark background for readability
+            border: "1px solid #444",
+            borderRadius: 8,
+            padding: "18px 22px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+            minWidth: 320,
+            maxWidth: 480,
+            maxHeight: 420,
+            color: "#f3f3f3",
+            fontSize: 15,
+            overflowY: "auto",
+          }}
+        >
+          <button
+            onClick={() => setHighlightSummary(null)}
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 14,
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              fontSize: 22,
+              fontWeight: 700,
+              cursor: "pointer",
+              zIndex: 1200
+            }}
+            aria-label="Close summary popup"
+          >
+            ×
+          </button>
+          <div style={{ fontWeight: "bold", marginBottom: 10, fontSize: 18, color: "#fff" }}>
+            Highlight Summary
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <b>Center:</b> <span style={{ color: "#b3e6ff" }}>{highlightSummary.center[0].toFixed(4)}, {highlightSummary.center[1].toFixed(4)}</span>
+          </div>
+          <div style={{ margin: "10px 0 4px 0", color: "#b3e6ff", fontWeight: 600 }}>
+            Features in Circle:
+          </div>
+          <ol style={{ margin: 0, paddingLeft: 22 }}>
+            {highlightSummary.features.map(({ feature, distance }, i) => (
+              <li key={i} style={{ marginBottom: 8 }}>
+                <div style={{ background: "#353b48", borderRadius: 4, padding: "6px 10px", color: "#fff", fontWeight: 500, display: "inline-block" }}>
+                  <AstroTooltipContent feat={feature} label={feature.properties.label || feature.properties.planet || feature.properties.type} />
+                  <span style={{ color: "#b3e6ff", fontSize: 13, marginLeft: 6 }}>({distance.toFixed(0)} m)</span>
+                </div>
+              </li>
+            ))}
+            {highlightSummary.features.length === 0 && (
+              <li style={{ color: "#aaa" }}>No features in circle</li>
+            )}
+          </ol>
         </div>
       )}
       <MapContainer
