@@ -15,8 +15,7 @@ from ephemeris import calculate_chart
 from chart_renderer import generate_chart_svg
 from astrocartography import calculate_astrocartography_lines_geojson
 from location_utils import get_location_suggestions, detect_timezone_from_coordinates
-from layers.humandesign import calculate_human_design_layer
-from gpt_formatter import format_for_gpt, format_natal_only, format_with_transits, format_with_design
+from gpt_formatter import format_for_gpt, format_natal_only, format_with_transits
 from house_systems import (
     get_house_system_choices, get_default_house_system, 
     get_recommended_house_systems, get_house_systems_by_category,
@@ -180,7 +179,6 @@ def api_interpret():
 
         # Generate interpretation with GPT
         # interpretation = generate_interpretation(chart_data)  # REMOVED: No longer exists
-        # return jsonify({"interpretation": interpretation})
         return jsonify({"filtered_lines": all_lines[:10]})  # Return first 10 lines as demo
 
     except Exception as e:
@@ -476,11 +474,6 @@ def api_chart_config():
                 "show_natal_aspects": True,
                 "highlight_chart_ruler": False
             },
-            "human_design": {
-                "show_gates": True,
-                "show_channels": True,
-                "show_centers": True
-            },
             "transit": {
                 "show_transit_aspects": True,
                 "show_natal_aspects": False,
@@ -551,7 +544,7 @@ def health_check_chart_renderer():
 @app.route('/api/gpt/comprehensive', methods=['POST'])
 def api_gpt_comprehensive():
     """
-    GPT endpoint: Complete astrological profile (Natal + Transits + Design)
+    GPT endpoint: Complete astrological profile (Natal + Transits)
     Returns all calculation layers in GPT-optimized format
     """
     try:
@@ -592,30 +585,8 @@ def api_gpt_comprehensive():
             app.logger.error(f"Transit calculation failed: {e}")
             transit_data = {"error": str(e)}
         
-        # Calculate design chart (88 days before birth)
-        design_data = None
-        try:
-            from datetime import timedelta
-            birth_datetime = datetime.strptime(f"{data.get('birth_date')} {data.get('birth_time')}", '%Y-%m-%d %H:%M')
-            design_datetime = birth_datetime - timedelta(days=88)
-            
-            design_data = calculate_chart(
-                birth_date=design_datetime.strftime('%Y-%m-%d'),
-                birth_time=design_datetime.strftime('%H:%M'),
-                birth_city=data.get('birth_city'),
-                birth_state=data.get('birth_state', ''),
-                birth_country=data.get('birth_country', ''),
-                timezone=data.get('timezone'),
-                house_system=data.get('house_system', 'whole_sign'),
-                coordinates=natal_data.get('coordinates')
-            )
-            design_data['calculation_date'] = design_datetime.isoformat()
-        except Exception as e:
-            app.logger.error(f"Design chart calculation failed: {e}")
-            design_data = {"error": str(e)}
-        
         # Format for GPT
-        gpt_formatted = format_for_gpt(natal_data, transit_data, design_data, data)
+        gpt_formatted = format_for_gpt(natal_data, transit_data, data)
         # If astrocartography_summary is present, add it to the output as a labeled section
         if data.get('astrocartography_summary'):
             gpt_formatted['astrocartography'] = data['astrocartography_summary']
@@ -712,61 +683,10 @@ def api_gpt_with_transits():
         app.logger.error(f"GPT with transits error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/gpt/with-design', methods=['POST'])
-def api_gpt_with_design():
-    """
-    GPT endpoint: Natal chart with Human Design chart
-    Focus on conscious/unconscious integration
-    """
+if __name__ == '__main__':
     try:
-        data = request.get_json(force=True)
-        app.logger.info("▶️  /api/gpt/with-design")
-        
-        # Calculate natal chart
-        natal_data = calculate_chart(
-            birth_date=data.get('birth_date'),
-            birth_time=data.get('birth_time'),
-            birth_city=data.get('birth_city'),
-            birth_state=data.get('birth_state', ''),
-            birth_country=data.get('birth_country', ''),
-            timezone=data.get('timezone'),
-            house_system=data.get('house_system', 'whole_sign'),
-            coordinates=data.get('coordinates')
-        )
-        
-        if "error" in natal_data:
-            return jsonify(natal_data), 400
-        
-        # Calculate design chart (88 days before birth)
-        design_data = None
-        try:
-            from datetime import timedelta
-            birth_datetime = datetime.strptime(f"{data.get('birth_date')} {data.get('birth_time')}", '%Y-%m-%d %H:%M')
-            design_datetime = birth_datetime - timedelta(days=88)
-            
-            design_data = calculate_chart(
-                birth_date=design_datetime.strftime('%Y-%m-%d'),
-                birth_time=design_datetime.strftime('%H:%M'),
-                birth_city=data.get('birth_city'),
-                birth_state=data.get('birth_state', ''),
-                birth_country=data.get('birth_country', ''),
-                timezone=data.get('timezone'),
-                house_system=data.get('house_system', 'whole_sign'),
-                coordinates=natal_data.get('coordinates')
-            )
-            design_data['calculation_date'] = design_datetime.isoformat()
-        except Exception as e:
-            app.logger.error(f"Design chart calculation failed: {e}")
-            design_data = {"error": str(e)}
-        
-        # Format for GPT (natal + design)
-        gpt_formatted = format_with_design(natal_data, design_data, data)
-        
-        return jsonify(gpt_formatted)
-        
+        port = int(os.environ.get('PORT', 5000))
+        app.logger.info(f"Starting Flask app on port {port}...")
+        app.run(host='0.0.0.0', port=port, debug=True)
     except Exception as e:
-        app.logger.error(f"GPT with design error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+        app.logger.error(f"Failed to start Flask app: {e}")

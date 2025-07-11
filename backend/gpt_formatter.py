@@ -29,8 +29,7 @@ import logging
 import sys
 import os
 import importlib.util
-import importlib.util
-# Note: swisseph, aspects, gates, humandesign_gates imported conditionally in v2 formatter methods
+# Note: swisseph, aspects imported conditionally in v2 formatter methods
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +51,9 @@ class GPTFormatter:
     
     def __init__(self):
         # Import v2 formatter dependencies only when GPTFormatter is instantiated
-        global swe, calculate_aspects, get_canonical_gate_name, get_gate_with_legacy_check
+        global swe, calculate_aspects
         import swisseph as swe
         from aspects import calculate_aspects
-        from gates import get_canonical_gate_name, get_gate_with_legacy_check
         
         self.version = "2.3.2"
         self.max_aspects = 12  # Increased for more comprehensive aspect analysis
@@ -387,43 +385,37 @@ class GPTFormatter:
         if isinstance(planets, list):
             for planet in planets:
                 if isinstance(planet, dict) and planet.get('name') == planet_name:
-                    # Add Human Design gate information
-                    planet_with_gate = self._add_human_design_gates(planet.copy(), planet_name)
-                    
                     # Use longitude (0-360) for degree field as per v2.3.1 schema
-                    longitude = planet_with_gate.get('longitude', 0)
+                    longitude = planet.get('longitude', 0)
                     return {
-                        "sign": planet_with_gate.get("sign", "Unknown"),
-                        "house": planet_with_gate.get("house", "Unknown"),
+                        "sign": planet.get("sign", "Unknown"),
+                        "house": planet.get("house", "Unknown"),
                         "degree": round_precision(longitude, 4),  # 4 decimal precision for v2.3.1
-                        "retrograde": planet_with_gate.get("retrograde", False),
-                        "speed": round_precision(planet_with_gate.get("speed", 0.0), 4),  # v2.3.1: Daily motion
-                        "declination": round_precision(planet_with_gate.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                        "gate": planet_with_gate.get("gate", "Unknown"),
-                        "gate_name": planet_with_gate.get("gate_name", "Unknown"),
-                        "gate_line": planet_with_gate.get("gate_line", None),  # Integer line for math
-                        "interpretation_key": f"{planet_name} in {planet_with_gate.get('sign', 'Unknown')} in House {planet_with_gate.get('house', 'Unknown')}"
+                        "retrograde": planet.get("retrograde", False),
+                        "speed": round_precision(planet.get("speed", 0.0), 4),  # v2.3.1: Daily motion
+                        "declination": round_precision(planet.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
+                        "gate": planet.get("gate", "Unknown"),
+                        "gate_name": planet.get("gate_name", "Unknown"),
+                        "gate_line": planet.get("gate_line", None),  # Integer line for math
+                        "interpretation_key": f"{planet_name} in {planet.get('sign', 'Unknown')} in House {planet.get('house', 'Unknown')}"
                     }
         # Handle planets as dictionary (legacy support)
         elif isinstance(planets, dict):
             planet_data = planets.get(planet_name, {})
             if planet_data and isinstance(planet_data, dict):
-                # Add Human Design gate information
-                planet_with_gate = self._add_human_design_gates(planet_data.copy(), planet_name)
-                
                 # Use longitude (0-360) for degree field as per v2.3.1 schema
-                longitude = planet_with_gate.get('longitude', 0)
+                longitude = planet_data.get('longitude', 0)
                 return {
-                    "sign": planet_with_gate.get("sign", "Unknown"),
-                    "house": planet_with_gate.get("house", "Unknown"),
+                    "sign": planet_data.get("sign", "Unknown"),
+                    "house": planet_data.get("house", "Unknown"),
                     "degree": round_precision(longitude, 4),  # 4 decimal precision for v2.3.1
-                    "retrograde": planet_with_gate.get("retrograde", False),
-                    "speed": round_precision(planet_with_gate.get("speed", 0.0), 4),  # v2.3.1: Daily motion
-                    "declination": round_precision(planet_with_gate.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_with_gate.get("gate", "Unknown"),
-                    "gate_name": planet_with_gate.get("gate_name", "Unknown"),
-                    "gate_line": planet_with_gate.get("gate_line", None),  # Integer line for math
-                    "interpretation_key": f"{planet_name} in {planet_with_gate.get('sign', 'Unknown')} in House {planet_with_gate.get('house', 'Unknown')}"
+                    "retrograde": planet_data.get("retrograde", False),
+                    "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
+                    "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
+                    "gate": planet_data.get("gate", "Unknown"),
+                    "gate_name": planet_data.get("gate_name", "Unknown"),
+                    "gate_line": planet_data.get("gate_line", None),  # Integer line for math
+                    "interpretation_key": f"{planet_name} in {planet_data.get('sign', 'Unknown')} in House {planet_data.get('house', 'Unknown')}"
                 }
         
         return None
@@ -689,21 +681,18 @@ class GPTFormatter:
                 planet_data = current_planets[planet_name]
             
             if planet_data and isinstance(planet_data, dict):
-                # Add Human Design gate information to transit positions
-                planet_with_gate = self._add_human_design_gates(planet_data.copy(), planet_name)
-                
                 # Use longitude for degree field (v2.3.1 schema compliance)
-                longitude = planet_with_gate.get('longitude', 0)
+                longitude = planet_data.get('longitude', 0)
                 formatted[planet_name.lower().replace(" ", "_")] = {
-                    "sign": planet_with_gate.get("sign", "Unknown"),
+                    "sign": planet_data.get("sign", "Unknown"),
                     "degree": round_precision(longitude, 4),  # 4 decimal precision
-                    "house": planet_with_gate.get("house", "Unknown"),
-                    "retrograde": planet_with_gate.get("retrograde", False),
-                    "speed": round_precision(planet_with_gate.get("speed", 0.0), 4),  # v2.3.1: Daily motion
-                    "declination": round_precision(planet_with_gate.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_with_gate.get("gate", "Unknown"),
-                    "gate_name": planet_with_gate.get("gate_name", "Unknown"),
-                    "gate_line": planet_with_gate.get("gate_line", None)  # Integer line for math
+                    "house": planet_data.get("house", "Unknown"),
+                    "retrograde": planet_data.get("retrograde", False),
+                    "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
+                    "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
+                    "gate": planet_data.get("gate", "Unknown"),
+                    "gate_name": planet_data.get("gate_name", "Unknown"),
+                    "gate_line": planet_data.get("gate_line", None)  # Integer line for math
                 }
                 included_bodies.append(planet_name)
         
@@ -854,24 +843,21 @@ class GPTFormatter:
                 planet_data = design_planets[planet_name]
             
             if planet_data and isinstance(planet_data, dict):
-                # Add Human Design gate information
-                planet_with_gate = self._add_human_design_gates(planet_data.copy(), planet_name)
-                
                 # v2.3: Nodes always have retrograde=true per requirement
-                retrograde_status = planet_with_gate.get("retrograde", False)
+                retrograde_status = planet_data.get("retrograde", False)
                 
                 # Use longitude for degree field (v2.3.1 schema compliance)
-                longitude = planet_with_gate.get('longitude', 0)
+                longitude = planet_data.get('longitude', 0)
                 formatted[planet_name.lower().replace(" ", "_")] = {
-                    "sign": planet_with_gate.get("sign", "Unknown"),
+                    "sign": planet_data.get("sign", "Unknown"),
                     "degree": round_precision(longitude, 4),  # 4 decimal precision
-                    "house": planet_with_gate.get("house", "Unknown"),
+                    "house": planet_data.get("house", "Unknown"),
                     "retrograde": retrograde_status,
-                    "speed": round_precision(planet_with_gate.get("speed", 0.0), 4),  # v2.3.1: Daily motion
-                    "declination": round_precision(planet_with_gate.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_with_gate.get("gate", "Unknown"),
-                    "gate_name": planet_with_gate.get("gate_name", "Unknown"),
-                    "gate_line": planet_with_gate.get("gate_line", None),
+                    "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
+                    "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
+                    "gate": planet_data.get("gate", "Unknown"),
+                    "gate_name": planet_data.get("gate_name", "Unknown"),
+                    "gate_line": planet_data.get("gate_line", None),
                     "chart_type": "design_unconscious"
                 }
                 included_bodies.append(planet_name)
@@ -899,12 +885,8 @@ class GPTFormatter:
             design_planet = design_lookup.get(planet_name)
             
             if natal_planet and design_planet:
-                # Add Human Design gates to planets
-                natal_with_gate = self._add_human_design_gates(natal_planet.copy(), planet_name)
-                design_with_gate = self._add_human_design_gates(design_planet.copy(), planet_name)
-                
-                natal_sign = natal_with_gate.get('sign', 'Unknown')
-                design_sign = design_with_gate.get('sign', 'Unknown')
+                natal_sign = natal_planet.get('sign', 'Unknown')
+                design_sign = design_planet.get('sign', 'Unknown')
                 
                 # Create integration note
                 if natal_sign == design_sign:
@@ -915,8 +897,6 @@ class GPTFormatter:
                 detailed_comparison[planet_name.lower().replace(" ", "_")] = {
                     "natal_sign": natal_sign,
                     "design_sign": design_sign,
-                    "natal_gate": natal_with_gate.get('gate', 'Unknown'),
-                    "design_gate": design_with_gate.get('gate', 'Unknown'),
                     "integration_note": integration_note
                 }
         return detailed_comparison
@@ -1131,216 +1111,6 @@ class GPTFormatter:
         
         # Sort by orb (tightest first) and limit to most important
         return sorted(transit_aspects, key=lambda x: x['orb'])[:10]
-    
-    def _add_human_design_gates(self, planet_data, planet_name=None):
-        """Add Human Design gate information to planet data with canonical names"""
-        if not isinstance(planet_data, dict):
-            return planet_data
-        
-        # Import only when needed for v2 formatter
-        from humandesign_gates import get_gate_line_from_longitude
-        from gates import get_gate_with_legacy_check
-        
-        # Force retrograde=true for nodes (v2.3 requirement)
-        if planet_name in ["North Node", "South Node"]:
-            planet_data['retrograde'] = True
-        
-        longitude = planet_data.get('longitude', 0)
-        # Re-round longitude to 4 decimals for precision
-        longitude = round_precision(longitude, 4)
-        
-        try:
-            gate_info = get_gate_line_from_longitude(longitude)
-            
-            if gate_info:
-                gate_number = gate_info['gate']
-                line_number = gate_info['line']
-                legacy_name = gate_info.get('name', '')
-                
-                # Use canonical gate name with legacy check
-                canonical_info = get_gate_with_legacy_check(gate_number, legacy_name)
-                
-                planet_data['gate'] = f"{gate_number}.{line_number}"
-                planet_data['gate_name'] = canonical_info['gate_name']
-                planet_data['gate_line'] = line_number  # Integer line for mathematical operations
-                
-                # Add alt_names if legacy differs from canonical
-                if 'alt_names' in canonical_info:
-                    planet_data['alt_names'] = canonical_info['alt_names']
-                    
-            else:
-                planet_data['gate'] = "Unknown"
-                planet_data['gate_name'] = "Unknown"
-                planet_data['gate_line'] = None
-                
-        except Exception as e:
-            logger.warning(f"Could not get Human Design gate for longitude {longitude}: {e}")
-            planet_data['gate'] = "Unknown"
-            planet_data['gate_name'] = "Unknown"
-            planet_data['gate_line'] = None
-        
-        return planet_data
-
-    def _extract_optional_points(self, chart_data):
-        """Extract optional calculated points (Part of Fortune, Vertex, etc.) - only include if present and valid"""
-        optional_points = {}
-        
-        # Only include Part of Fortune if present and valid
-        if "part_of_fortune" in chart_data:
-            pof_data = chart_data["part_of_fortune"]
-            if isinstance(pof_data, dict) and pof_data.get("position") is not None:
-                # Use longitude instead of position and 4-decimal precision
-                longitude = pof_data.get("longitude", pof_data.get("position", 0))
-                optional_points["part_of_fortune"] = {
-                    "sign": pof_data.get("sign", "Unknown"),
-                    "house": pof_data.get("house", "Unknown"),
-                    "degree": round_precision(longitude, 4)  # 4 decimal precision for v2.3
-                }
-        
-        # Only include Vertex if present and valid
-        if "vertex" in chart_data:
-            vertex_data = chart_data["vertex"]
-            if isinstance(vertex_data, dict) and vertex_data.get("position") is not None:
-                # Use longitude instead of position and 4-decimal precision
-                longitude = vertex_data.get("longitude", vertex_data.get("position", 0))
-                optional_points["vertex"] = {
-                    "sign": vertex_data.get("sign", "Unknown"),
-                    "house": vertex_data.get("house", "Unknown"),
-                    "degree": round_precision(longitude, 4)  # 4 decimal precision for v2.3
-                }
-        
-        # Add East Point using helper method
-        ep = self._east_point(chart_data)
-        if ep:
-            optional_points["east_point"] = ep
-            
-        # Add Part of Spirit using helper method
-        spirit = self._part_of_spirit(chart_data)
-        if spirit:
-            optional_points["part_of_spirit"] = spirit
-        
-        return optional_points
-
-    def _east_point(self, chart_data):
-        """Calculate East Point: longitude = RA of MC converted back to ecliptic longitude at natal latitude"""
-        try:
-            # Extract necessary data from chart_data
-            houses = chart_data.get("houses", {})
-            coordinates = chart_data.get("coordinates", {})
-            
-            # Get MC longitude and latitude
-            mc_data = houses.get("midheaven")
-            if not mc_data or not isinstance(mc_data, dict):
-                return None
-                
-            mc_longitude = mc_data.get("longitude", 0)
-            latitude = coordinates.get("latitude", 0)
-            
-            if not latitude:
-                return None
-            
-            # Convert MC longitude to RA, then back to ecliptic longitude at natal latitude
-            # This is a simplified calculation - in practice would use more precise ephemeris calculations
-            # For now, using a basic approximation
-            east_point_longitude = (mc_longitude + 90) % 360  # Basic East Point approximation
-            
-            # Calculate sign and house
-            signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-                    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
-            sign_index = int(east_point_longitude // 30)
-            sign = signs[sign_index] if 0 <= sign_index < 12 else "Unknown"
-            
-            return {
-                "sign": sign,
-                "house": "Unknown",  # Would need house calculation
-                "degree": round_precision(east_point_longitude, 4)
-            }
-            
-        except Exception as e:
-            logger.warning(f"Could not calculate East Point: {e}")
-            return None
-
-    def _part_of_spirit(self, chart_data):
-        """Calculate Part of Spirit: diurnal: ASC + Sun – Moon; nocturnal: ASC + Moon – Sun"""
-        try:
-            # Extract necessary data
-            houses = chart_data.get("houses", {})
-            planets = chart_data.get("planets", {})
-            
-            # Get ASC longitude
-            asc_data = houses.get("ascendant")
-            if not asc_data or not isinstance(asc_data, dict):
-                return None
-            asc_longitude = asc_data.get("longitude", 0)
-            
-            # Get Sun and Moon longitudes
-            sun_longitude = None
-            moon_longitude = None
-            
-            if isinstance(planets, list):
-                for planet in planets:
-                    if isinstance(planet, dict):
-                        name = planet.get("name")
-                        if name == "Sun":
-                            sun_longitude = planet.get("longitude", 0)
-                        elif name == "Moon":
-                            moon_longitude = planet.get("longitude", 0)
-            elif isinstance(planets, dict):
-                sun_data = planets.get("Sun", {})
-                moon_data = planets.get("Moon", {})
-                if isinstance(sun_data, dict):
-                    sun_longitude = sun_data.get("longitude", 0)
-                if isinstance(moon_data, dict):
-                    moon_longitude = moon_data.get("longitude", 0)
-            
-            if sun_longitude is None or moon_longitude is None:
-                return None
-            
-            # Determine if diurnal (day) or nocturnal (night) chart
-            # Simple check: if Sun is above horizon (in houses 7-12), it's diurnal
-            sun_house = None
-            if isinstance(planets, list):
-                for planet in planets:
-                    if isinstance(planet, dict) and planet.get("name") == "Sun":
-                        sun_house = planet.get("house")
-                        break
-            elif isinstance(planets, dict):
-                sun_data = planets.get("Sun", {})
-                if isinstance(sun_data, dict):
-                    sun_house = sun_data.get("house")
-            
-            # Default to diurnal if house not available
-            is_diurnal = True
-            if sun_house and isinstance(sun_house, (int, str)):
-                try:
-                    house_num = int(sun_house)
-                    is_diurnal = house_num >= 7 and house_num <= 12
-                except:
-                    pass
-            
-            # Calculate Part of Spirit
-            if is_diurnal:
-                # Diurnal: ASC + Sun - Moon
-                spirit_longitude = (asc_longitude + sun_longitude - moon_longitude) % 360
-            else:
-                # Nocturnal: ASC + Moon - Sun
-                spirit_longitude = (asc_longitude + moon_longitude - sun_longitude) % 360
-            
-            # Calculate sign
-            signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-                    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
-            sign_index = int(spirit_longitude // 30)
-            sign = signs[sign_index] if 0 <= sign_index < 12 else "Unknown"
-            
-            return {
-                "sign": sign,
-                "house": "Unknown",  # Would need house calculation
-                "degree": round_precision(spirit_longitude, 4)
-            }
-            
-        except Exception as e:
-            logger.warning(f"Could not calculate Part of Spirit: {e}")
-            return None
     
 
 # Convenience functions for easy import and use

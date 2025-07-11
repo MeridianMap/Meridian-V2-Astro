@@ -35,16 +35,6 @@ const getLineStyle = (feature) => {
       lineCap: 'round',
       zIndex: 1000
     };
-  } else if (layerName === 'HD_DESIGN') {
-    // Distinct style for Human Design: vibrant purple with solid lines
-    return {
-      color: '#D47AFF', // Purple color matching the controls
-      weight: 3,
-      opacity: 0.85,
-      dashArray: '4 2', // subtle dashed line to distinguish from natal
-      lineCap: 'round',
-      zIndex: 800
-    };
   } else {
     // Natal layer (default) - use planet-specific colors
     return {

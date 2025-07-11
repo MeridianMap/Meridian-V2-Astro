@@ -11,12 +11,10 @@ try:
     from backend.ephemeris_utils import initialize_ephemeris
     from backend.spline_utils import parametric_spline
     from backend.line_ac_dc import split_dateline
-    from backend.humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
 except ImportError:
     from ephemeris_utils import initialize_ephemeris
     from spline_utils import parametric_spline
     from line_ac_dc import split_dateline
-    from humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
 
 initialize_ephemeris()
 
@@ -169,21 +167,6 @@ def calculate_aspect_lines(chart_data, debug=False):
                 if planet_data.get("sign"):
                     feature_properties["sign"] = planet_data.get("sign")
                 
-                # Add Human Design gate information if longitude is available
-                if planet_data.get("longitude"):
-                    try:
-                        gate_info = get_gate_from_longitude(planet_data.get("longitude"))
-                        gate_line_info = get_gate_line_from_longitude(planet_data.get("longitude"))
-                        if gate_info:
-                            feature_properties["hd_gate"] = gate_info["gate"]
-                            feature_properties["hd_gate_name"] = gate_info["name"]
-                        if gate_line_info:
-                            feature_properties["hd_line"] = gate_line_info["line"]
-                            feature_properties["hd_line_name"] = gate_line_info["name"]
-                    except Exception as e:
-                        if debug:
-                            print(f"[WARN] Error calculating Human Design gate for {name}: {e}")
-                
                 features.append({
                     "type": "Feature",
                     "geometry": {"type": "LineString", "coordinates": coords},
@@ -210,21 +193,6 @@ def calculate_aspect_lines(chart_data, debug=False):
                         feat["properties"]["house"] = planet_data.get("house")
                     if planet_data.get("sign"):
                         feat["properties"]["sign"] = planet_data.get("sign")
-                    
-                    # Add Human Design gate information if longitude is available
-                    if planet_data.get("longitude"):
-                        try:
-                            gate_info = get_gate_from_longitude(planet_data.get("longitude"))
-                            gate_line_info = get_gate_line_from_longitude(planet_data.get("longitude"))
-                            if gate_info:
-                                feat["properties"]["hd_gate"] = gate_info["gate"]
-                                feat["properties"]["hd_gate_name"] = gate_info["name"]
-                            if gate_line_info:
-                                feat["properties"]["hd_line"] = gate_line_info["line"]
-                                feat["properties"]["hd_line_name"] = gate_line_info["name"]
-                        except Exception as e:
-                            if debug:
-                                print(f"[WARN] Error calculating Human Design gate for {pname}: {e}")
                     
                     features.append(feat)
                     asc_count += 1

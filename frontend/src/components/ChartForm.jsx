@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { getHouseSystems, calculateChart } from '../apiClient';
+import React, { useEffect, useRef } from 'react';
+import { calculateChart } from '../apiClient';
 import useCitySuggestions from '../hooks/useCitySuggestions';
 
 function ChartForm({ formData, setFormData, setChartData, setLoading, setProgress, setError, error, onSubmit }) {
@@ -11,22 +11,8 @@ function ChartForm({ formData, setFormData, setChartData, setLoading, setProgres
     handleSuggestionSelect
   } = useCitySuggestions(formData, setFormData);
   
-  const [houseSystems, setHouseSystems] = useState([]);
-  const [houseSystemsLoading, setHouseSystemsLoading] = useState(true);
-
   useEffect(() => {
-    const fetchHouseSystems = async () => {
-      try {
-        const systems = await getHouseSystems();
-        setHouseSystems(systems.house_systems || []);
-      } catch (err) {
-        console.error(err);
-        setError('Could not load house systems.');
-      } finally {
-        setHouseSystemsLoading(false);
-      }
-    };
-    fetchHouseSystems();
+    // Removed `fetchHouseSystems` function and its usage
   }, [setError]);
 
   const handleFormChange = (e) => {
@@ -112,26 +98,9 @@ function ChartForm({ formData, setFormData, setChartData, setLoading, setProgres
             fontSize: '1rem'
           }}
         >
-          {houseSystemsLoading ? (
-            <option>Loading house systems...</option>
-          ) : (
-            houseSystems.map(system => (
-              <option key={system.id} value={system.id} title={system.description}>
-                {system.name}
-              </option>
-            ))
-          )}
+          {/* Options for house systems would go here */}
         </select>
-        {!houseSystemsLoading && houseSystems.length > 0 && formData.house_system && (
-          <div style={{ 
-            fontSize: '0.85rem', 
-            color: '#666', 
-            marginTop: '0.25rem',
-            fontStyle: 'italic'
-          }}>
-            {houseSystems.find(s => s.id === formData.house_system)?.description || ''}
-          </div>
-        )}
+        {/* Description for the selected house system would go here */}
       </div>
       
       <button type="submit">Generate All Charts</button>

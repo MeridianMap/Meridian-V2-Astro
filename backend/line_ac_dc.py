@@ -19,11 +19,9 @@ if __name__ != "__main__":
 try:
     from backend.ephemeris_utils import initialize_ephemeris
     from backend.spline_utils import parametric_spline
-    from backend.humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
 except ImportError:
     from ephemeris_utils import initialize_ephemeris
     from spline_utils import parametric_spline
-    from humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
 
 initialize_ephemeris()
 
@@ -205,20 +203,6 @@ def generate_horizon_lines(chart_data, settings=None) -> list:
             planet_data = next((p for p in chart_data["planets"] if p.get("name") == pname), None)
             if planet_data and planet_data.get("data_type"):
                 feat["properties"]["data_type"] = planet_data.get("data_type")
-            
-            # Add Human Design gate information if longitude is available
-            if planet_data and planet_data.get("longitude"):
-                try:
-                    gate_info = get_gate_from_longitude(planet_data.get("longitude"))
-                    gate_line_info = get_gate_line_from_longitude(planet_data.get("longitude"))
-                    if gate_info:
-                        feat["properties"]["hd_gate"] = gate_info["gate"]
-                        feat["properties"]["hd_gate_name"] = gate_info["name"]
-                    if gate_line_info:
-                        feat["properties"]["hd_line"] = gate_line_info["line"]
-                        feat["properties"]["hd_line_name"] = gate_line_info["name"]
-                except Exception as e:
-                    print(f"[WARN] Error calculating Human Design gate for {pname}: {e}")
             
             # Add house and sign information if available
             if planet_data:

@@ -11,12 +11,10 @@ import DemoCharts from './components/DemoCharts';
 import NatalDisplayControls from './components/NatalDisplayControls';
 import TransitControls from './components/TransitControls';
 import CCGControls from './components/CCGControls';
-import HumanDesignControls from './components/HumanDesignControls';
 import useChartData from './hooks/useChartData';
 import useAstroData from './hooks/useAstroData';
 import useTransitData from './hooks/useTransitData';
 import useCCGData from './hooks/useCCGData';
-import useHumanDesignData from './hooks/useHumanDesignData';
 
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY
 const TIMEZONEDB_API_KEY = 'YHIFBIVJIA14'
@@ -87,7 +85,6 @@ function App() {
   const { astroData, setAstroData } = useAstroData(layerManager, forceMapUpdate);
   const { isTransitEnabled, fetchTransits, loadingStep: transitLoading } = useTransitData(layerManager, forceMapUpdate);
   const { fetchCCG, loadingStep: ccgLoading } = useCCGData(layerManager, forceMapUpdate);
-  const { fetchHumanDesign, loadingStep: hdLoading } = useHumanDesignData(layerManager, forceMapUpdate);
 
   // Enhanced progress tracking with detailed steps
   const [overallProgress, setOverallProgress] = useState({
@@ -97,8 +94,7 @@ function App() {
     layerStatuses: {
       natal: { status: 'pending', progress: 0, message: '' },
       transit: { status: 'pending', progress: 0, message: '' },
-      ccg: { status: 'pending', progress: 0, message: '' },
-      humanDesign: { status: 'pending', progress: 0, message: '' }
+      ccg: { status: 'pending', progress: 0, message: '' }
     }
   });
 
@@ -130,7 +126,7 @@ function App() {
   };
 
   // Combine all loading states for display
-  const activeLoadingStep = overallProgress.step || chartLoading || transitLoading || ccgLoading || hdLoading;
+  const activeLoadingStep = overallProgress.step || chartLoading || transitLoading || ccgLoading;
   const loadingStep = activeLoadingStep;
   // Initialize layers
   React.useEffect(() => {
@@ -170,21 +166,6 @@ function App() {
       type: 'overlay',
       style: { color: '#4A90E2', width: 3, opacity: 0.8 },
       subLayers: { ac_dc: true, ic_mc: true, parans: true, lots: true }
-    });
-
-    // Register Human Design layer (with all natal features except fixed stars)
-    layerManager.addLayer('HD_DESIGN', {
-      visible: false,
-      order: 2,
-      type: 'overlay',
-      style: { color: '#D47AFF', width: 3, opacity: 0.85 }, // Purple color for HD
-      subLayers: { 
-        ac_dc: true, 
-        ic_mc: true, 
-        parans: true, 
-        lots: true,
-        aspects: true // HD includes aspects unlike CCG/Transit
-      }
     });
 
     // Listen for layer changes
@@ -248,16 +229,6 @@ function App() {
     ic_mc: true,
     ac_dc: true
   });
-  // Human Design toggles (includes aspects unlike CCG/Transit)
-  const [hdLineToggles, setHDLineToggles] = useState({
-    planet: true,
-    mc_aspects: true,
-    ac_aspects: true,
-    hermetic_lot: true,
-    parans: true,
-    ic_mc: true,
-    ac_dc: true
-  });
   const allBodies = [
     "Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "Lunar Node",
     "Chiron", "Ceres", "Pallas", "Juno", "Vesta", "Black Moon Lilith", "Pholus"
@@ -269,17 +240,11 @@ function App() {
   const [bodyToggles, setBodyToggles] = useState(
     Object.fromEntries(allBodies.map(name => [name, true]))
   );
-  // CCG body toggles (exclude nodes)
   const [ccgBodyToggles, setCCGBodyToggles] = useState(
     Object.fromEntries(ccgBodies.map(name => [name, true]))
   );
-  // Human Design body toggles (includes all bodies like natal)
-  const [hdBodyToggles, setHDBodyToggles] = useState(
-    Object.fromEntries(allBodies.map(name => [name, true]))
-  );
-  const [showBodyAccordion, setShowBodyAccordion] = useState(true);
   const [ccgShowBodyAccordion, setCCGShowBodyAccordion] = useState(true);
-  const [hdShowBodyAccordion, setHDShowBodyAccordion] = useState(true);
+  const [transitShowBodyAccordion, setTransitShowBodyAccordion] = useState(true);
 
   // Transit toggles (similar to CCG but separate)
   const [transitLineToggles, setTransitLineToggles] = useState({
@@ -296,7 +261,6 @@ function App() {
   const [transitBodyToggles, setTransitBodyToggles] = useState(
     Object.fromEntries(transitBodies.map(name => [name, true]))
   );
-  const [transitShowBodyAccordion, setTransitShowBodyAccordion] = useState(true);
 
   // Line labels
   const lineLabels = {
@@ -320,8 +284,7 @@ function App() {
         layerStatuses: {
           natal: { status: 'pending', progress: 0, message: 'Waiting to start...' },
           transit: { status: 'pending', progress: 0, message: 'Waiting to start...' },
-          ccg: { status: 'pending', progress: 0, message: 'Waiting to start...' },
-          humanDesign: { status: 'pending', progress: 0, message: 'Waiting to start...' }
+          ccg: { status: 'pending', progress: 0, message: 'Waiting to start...' }
         }
       });
 
@@ -385,22 +348,8 @@ function App() {
         })
       );
       
-      // Step 4: Human Design Layer (75% - 95%)
-      updateLayerProgress('humanDesign', 'processing', 20, 'Calculating Human Design chart...');
-      layerPromises.push(
-        fetchHumanDesign(formData, chartData?.coordinates).then(() => {
-          updateLayerProgress('humanDesign', 'completed', 100, 'Human Design layer complete!');
-          layerManager.setLayerVisible('HD_DESIGN', false); // Keep HD hidden initially
-          console.log('✅ Human Design layer completed successfully');
-        }).catch(error => {
-          console.error('❌ Human Design generation failed:', error);
-          updateLayerProgress('humanDesign', 'failed', 0, `Failed: ${error.message}`);
-          errors.push('Human Design layer generation failed');
-        })
-      );
-      
       // Update progress as layers are processing
-      setOverallProgress(prev => ({ ...prev, step: 'parallel_layers', percentage: 30, message: 'Steps 2-4: Generating Transit, CCG, and Human Design layers in parallel...' }));
+      setOverallProgress(prev => ({ ...prev, step: 'parallel_layers', percentage: 30, message: 'Steps 2-4: Generating Transit and CCG layers in parallel...' }));
       
       // Monitor progress while waiting for parallel operations
       const progressInterval = setInterval(() => {
@@ -433,7 +382,6 @@ function App() {
       layerManager.setLayerVisible('natal', true);
       layerManager.setLayerVisible('transit', false);
       layerManager.setLayerVisible('CCG', false);
-      layerManager.setLayerVisible('HD_DESIGN', false);
       
       forceMapUpdate();
       
@@ -455,8 +403,7 @@ function App() {
           layerStatuses: {
             natal: { status: 'pending', progress: 0, message: '' },
             transit: { status: 'pending', progress: 0, message: '' },
-            ccg: { status: 'pending', progress: 0, message: '' },
-            humanDesign: { status: 'pending', progress: 0, message: '' }
+            ccg: { status: 'pending', progress: 0, message: '' }
           }
         });
       }, 4000);
@@ -469,8 +416,7 @@ function App() {
         layerStatuses: {
           natal: { status: 'pending', progress: 0, message: '' },
           transit: { status: 'pending', progress: 0, message: '' },
-          ccg: { status: 'pending', progress: 0, message: '' },
-          humanDesign: { status: 'pending', progress: 0, message: '' }
+          ccg: { status: 'pending', progress: 0, message: '' }
         }
       });
       console.error('Consolidated chart generation failed:', error);
@@ -497,28 +443,6 @@ function App() {
     } catch (error) {
       setOverallProgress({ step: null, percentage: 0, message: '' });
       console.error('CCG generation failed:', error);
-    }
-  };
-
-  // Human Design handler
-  const handleGenerateHD = async () => {
-    try {
-      setOverallProgress({ step: 'hd_calculation', percentage: 30, message: 'Calculating Human Design chart...' });
-      // Get coordinates from natal chart response
-      const coordinates = response?.coordinates;
-      await fetchHumanDesign(formData, coordinates);
-      setOverallProgress({ step: 'hd_complete', percentage: 100, message: 'Human Design overlay generated!' });
-      // Ensure HD_DESIGN layer is visible after generation
-      layerManager.setLayerVisible('HD_DESIGN', true);
-      forceMapUpdate(); // Ensure map updates immediately after HD overlay is generated
-      
-      // Clear progress after delay
-      setTimeout(() => {
-        setOverallProgress({ step: null, percentage: 0, message: '' });
-      }, 2000);
-    } catch (error) {
-      setOverallProgress({ step: null, percentage: 0, message: '' });
-      console.error('Human Design generation failed:', error);
     }
   };
 
@@ -642,31 +566,15 @@ function App() {
     }
     // CCG overlay - simplified filtering using unified controls
     const ccgLayer = layerManager.getLayer('CCG');
-    console.log('🟦 CCG Layer Debug:', {
-      isVisible: layerManager.isLayerVisible('CCG'),
-      hasLayer: !!ccgLayer,
-      hasData: !!(ccgLayer && ccgLayer.data),
-      hasFeatures: !!(ccgLayer && ccgLayer.data && ccgLayer.data.features),
-      featuresCount: ccgLayer?.data?.features?.length || 0,
-      firstFeatureLayer: ccgLayer?.data?.features?.[0]?.properties?.layer,
-      firstFeatureProps: ccgLayer?.data?.features?.[0]?.properties
-    });
     if (layerManager.isLayerVisible('CCG') && ccgLayer && ccgLayer.data && ccgLayer.data.features) {
       let ccgFeatures = ccgLayer.data.features;
-      // Don't filter by layer property initially - let's see all features
       ccgFeatures = ccgFeatures.filter(f => {
-        // Remove the layer check temporarily for debugging
-        // if (f.properties?.layer !== 'CCG') return false;
-        
-        const cat = f.properties?.category;
-        const lineType = f.properties?.line_type;
-        
         // CCG Feature Type Filtering
-        if (cat === 'parans' && !ccgLineToggles.parans) return false;
-        if (cat === 'fixed_star' && !ccgLineToggles.fixed_star) return false;
+        if (f.properties?.category === 'parans' && !ccgLineToggles.parans) return false;
+        if (f.properties?.category === 'fixed_star' && !ccgLineToggles.fixed_star) return false;
         
         // Handle hermetic lots first - they have their own toggle and should NOT be affected by IC/MC toggle
-        if (cat === 'hermetic_lot' || cat === 'lot' || f.properties?.body_type === 'lot') {
+        if (f.properties?.category === 'hermetic_lot' || f.properties?.category === 'lot' || f.properties?.body_type === 'lot') {
           return ccgLineToggles.hermetic_lot; // Only check hermetic lot toggle, ignore IC/MC toggle
         }
         
@@ -681,10 +589,10 @@ function App() {
         if (body === 'North Node' || body === 'NN' || body === 'Rahu') body = 'Lunar Node';
         
         // For planet lines (IC/MC/AC/DC), check both line type AND body toggles
-        if (lineType === 'IC' || lineType === 'MC') {
+        if (f.properties?.line_type === 'IC' || f.properties?.line_type === 'MC') {
           if (!ccgLineToggles.ic_mc) return false; // Line type disabled
           if (body && ccgBodyToggles[body] === false) return false; // Body disabled
-        } else if (lineType === 'AC' || lineType === 'DC' || lineType === 'HORIZON') {
+        } else if (f.properties?.line_type === 'AC' || f.properties?.line_type === 'DC' || f.properties?.line_type === 'HORIZON') {
           if (!ccgLineToggles.ac_dc) return false; // Line type disabled  
           if (body && ccgBodyToggles[body] === false) return false; // Body disabled
         } else {
@@ -694,100 +602,18 @@ function App() {
         
         return true;
       });
-      console.log('🟦 Final CCG features count:', ccgFeatures.length);
       features = features.concat(ccgFeatures.map(f => ({ ...f, layerName: 'CCG' })));
-    }
-
-    // Human Design overlay - filtering using unified controls
-    const hdLayer = layerManager.getLayer('HD_DESIGN');
-    console.log('🟣 HD Layer Debug:', {
-      isVisible: layerManager.isLayerVisible('HD_DESIGN'),
-      hasLayer: !!hdLayer,
-      hasData: !!(hdLayer && hdLayer.data),
-      hasFeatures: !!(hdLayer && hdLayer.data && hdLayer.data.features),
-      featuresCount: hdLayer?.data?.features?.length || 0,
-      firstFeatureLayer: hdLayer?.data?.features?.[0]?.properties?.layer,
-      firstFeatureProps: hdLayer?.data?.features?.[0]?.properties
-    });
-    if (layerManager.isLayerVisible('HD_DESIGN') && hdLayer && hdLayer.data && hdLayer.data.features) {
-      console.log('🟣 HD Layer visible and has data, features count:', hdLayer.data.features.length);
-      let hdFeatures = hdLayer.data.features;
-      hdFeatures = hdFeatures.filter(f => {
-        // Remove the layer check temporarily for debugging
-        // if (f.properties?.layer !== 'HD_DESIGN') return false;
-        
-        const cat = f.properties?.category;
-        const lineType = f.properties?.line_type;
-        
-        // HD Feature Type Filtering
-        if (cat === 'parans' && !hdLineToggles.parans) return false;
-        
-        // Handle hermetic lots first - they have their own toggle and should NOT be affected by IC/MC toggle
-        if (cat === 'hermetic_lot' || cat === 'lot' || f.properties?.body_type === 'lot') {
-          return hdLineToggles.hermetic_lot; // Only check hermetic lot toggle, ignore IC/MC toggle
-        }
-        
-        // Aspect handling for HD (unlike CCG/Transit, HD includes aspects)
-        if (cat === 'aspect') {
-          const aspectTo = f.properties?.to;
-          if (aspectTo === 'MC' && !hdLineToggles.mc_aspects) return false;
-          if (aspectTo === 'AC' && !hdLineToggles.ac_aspects) return false;
-          if (!aspectTo) {
-            if (!hdLineToggles.mc_aspects && !hdLineToggles.ac_aspects) return false;
-          }
-        }
-        
-        // HD Body Filtering (extract body name first)
-        let body = f.properties?.planet || f.properties?.body || f.properties?.name;
-        // Remove " HD" suffix if present in the name
-        if (body && body.endsWith(' HD')) {
-          body = body.replace(' HD', '');
-        }
-        if (body === 'Pallas Athena') body = 'Pallas';
-        if (body === 'Lilith' || body === 'BML' || body === 'Black Moon') body = 'Black Moon Lilith';
-        if (body === 'North Node' || body === 'NN' || body === 'Rahu') body = 'Lunar Node';
-        
-        // For planet lines (IC/MC/AC/DC), check both line type AND body toggles
-        if (lineType === 'IC' || lineType === 'MC') {
-          if (!hdLineToggles.ic_mc) return false; // Line type disabled
-          if (body && hdBodyToggles[body] === false) return false; // Body disabled
-        } else if (lineType === 'AC' || lineType === 'DC' || lineType === 'HORIZON') {
-          if (!hdLineToggles.ac_dc) return false; // Line type disabled  
-          if (body && hdBodyToggles[body] === false) return false; // Body disabled
-        } else {
-          // For other features (parans, aspects, etc.), check body if it exists
-          if (body && hdBodyToggles[body] === false) return false;
-        }
-        
-        return true;
-      });
-      console.log('🟣 HD Features after filtering:', hdFeatures.length);
-      features = features.concat(hdFeatures.map(f => ({ ...f, layerName: 'HD_DESIGN' })));
     }
 
     // Transit Overlay
     if (layerManager.isLayerVisible('transit')) {
-      console.log('🟪 Transit layer is visible, processing transit data...');
       const transitData = layerManager.getLayer('transit')?.data;
-      console.log('🟪 Transit data from layer manager:', {
-        hasTransitData: !!transitData,
-        featuresCount: transitData?.features?.length || 0,
-        firstFeatureLayer: transitData?.features?.[0]?.properties?.layer,
-        firstFeatureProps: transitData?.features?.[0]?.properties
-      });
       let transitFeatures = transitData?.features || [];
-      console.log('🟪 Transit features before filtering:', transitFeatures.length);
       
       transitFeatures = transitFeatures.filter(f => {
         try {
           // Defensive null checks
           if (!f || !f.properties) return false;
-          
-          // Remove the layer check temporarily for debugging
-          // if (f.properties?.layer !== 'transit') {
-          //   console.log('Feature filtered out - not transit layer:', f.properties?.layer);
-          //   return false;
-          // }
           
           const cat = f.properties?.category;
           const lineType = f.properties?.line_type;
@@ -822,21 +648,19 @@ function App() {
             if (body && transitBodyToggles[body] === false) return false;
           }
           
-          console.log('🟪 Transit features after filtering:', transitFeatures.length);
           return true;
         } catch (err) {
           console.error('Error filtering transit feature:', err, f);
           return false; // Filter out problematic features
         }
       });
-      console.log('🟪 Final transit features count:', transitFeatures.length);
       features = features.concat(transitFeatures.map(f => ({ ...f, layerName: 'transit' })));
     }
 
     console.log('[DEBUG] Total merged features:', features.length);
     return { features };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [astroData, lineToggles, bodyToggles, ccgLineToggles, ccgBodyToggles, hdLineToggles, hdBodyToggles, transitLineToggles, transitBodyToggles, layerManager, mapUpdateTrigger]);
+  }, [astroData, lineToggles, bodyToggles, ccgLineToggles, ccgBodyToggles, transitLineToggles, transitBodyToggles, layerManager, mapUpdateTrigger]);
 
   // Show password prompt if not authenticated
   if (!isAuthenticated) {
@@ -1075,9 +899,6 @@ function App() {
                      // CCG steps
                      loadingStep === 'ccg_ephemeris' || ccgLoading === 'ephemeris' ? '25%' :
                      loadingStep === 'ccg_astro' || ccgLoading === 'astro' ? '75%' :
-                     // Human Design steps
-                     loadingStep === 'chart_calculation' || hdLoading === 'chart_calculation' ? '20%' :
-                     loadingStep === 'hd_calculation' || hdLoading === 'hd_calculation' ? '70%' :
                      // Completion states
                      loadingStep === 'done' || loadingStep === 'ccg_complete' || loadingStep === 'hd_complete' ? '100%' : 
                      '10%',
@@ -1100,7 +921,7 @@ function App() {
                 {/* Consolidated generation steps */}
                 {loadingStep === 'natal_ephemeris' && 'Step 1/4: Calculating natal chart ephemeris...'}
                 {loadingStep === 'natal_astro' && 'Step 1/4: Generating natal astrocartography lines...'}
-                {loadingStep === 'parallel_layers' && 'Steps 2-4: Generating Transit, CCG, and Human Design layers...'}
+                {loadingStep === 'parallel_layers' && 'Steps 2-4: Generating Transit and CCG layers...'}
                 {loadingStep === 'finalizing' && 'Step 5/5: Finalizing all layers...'}
                 {loadingStep === 'complete' && 'All layers generated successfully!'}
                 
@@ -1115,10 +936,6 @@ function App() {
                 {/* CCG steps */}
                 {(loadingStep === 'ccg_ephemeris' || ccgLoading === 'ephemeris') && 'Calculating CCG ephemeris...'}
                 {(loadingStep === 'ccg_astro' || ccgLoading === 'astro') && 'Generating CCG astrocartography...'}
-                
-                {/* Human Design steps */}
-                {(loadingStep === 'chart_calculation' || hdLoading === 'chart_calculation') && 'Calculating base chart data...'}
-                {(loadingStep === 'hd_calculation' || hdLoading === 'hd_calculation') && 'Generating Human Design astrocartography...'}
                 
                 {/* Completion states */}
                 {loadingStep === 'done' && 'Natal chart complete!'}
@@ -1264,8 +1081,6 @@ function App() {
               allBodies={allBodies}
               bodyToggles={bodyToggles}
               setBodyToggles={setBodyToggles}
-              showBodyAccordion={showBodyAccordion}
-              setShowBodyAccordion={setCCGShowBodyAccordion}
             />
             {/* CCG Controls Section */}
             <CCGControls
@@ -1281,20 +1096,6 @@ function App() {
               setBodyToggles={setCCGBodyToggles}
               showBodyAccordion={ccgShowBodyAccordion}
               setShowBodyAccordion={setCCGShowBodyAccordion}
-            />
-            {/* Human Design Controls Section */}
-            <HumanDesignControls
-              layerManager={layerManager}
-              forceMapUpdate={forceMapUpdate}
-              handleGenerateHD={handleGenerateHD}
-              loadingStep={loadingStep}
-              lineToggles={hdLineToggles}
-              setLineToggles={setHDLineToggles}
-              allBodies={allBodies}
-              bodyToggles={hdBodyToggles}
-              setBodyToggles={setHDBodyToggles}
-              showBodyAccordion={hdShowBodyAccordion}
-              setShowBodyAccordion={setHDShowBodyAccordion}
             />
             {/* Transit Controls */}
             <TransitControls

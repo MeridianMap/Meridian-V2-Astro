@@ -3,9 +3,6 @@ import React from 'react';
 function HumanDesignControls({
   layerManager,
   forceMapUpdate,
-  handleGenerateHD,
-  loadingStep,
-  // New props for unified control
   lineToggles,
   setLineToggles,
   allBodies,

@@ -13,20 +13,6 @@ The layer has its own color palette and style tokens for easy UI toggling.
 import datetime as _dt
 from typing import Dict, List, Optional
 import swisseph as swe
-import hashlib
-import json
-
-# Optional Redis support for caching
-try:
-    import redis
-    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-    REDIS_AVAILABLE = True
-except ImportError:
-    redis_client = None
-    REDIS_AVAILABLE = False
-except Exception:
-    redis_client = None
-    REDIS_AVAILABLE = False
 
 try:
     from backend.astrocartography import generate_all_astrocartography_features
@@ -63,9 +49,6 @@ except ImportError:
 # Initialize Swiss Ephemeris
 initialize_ephemeris()
 
-# Redis cache for design datetime calculations (optional)
-# Removed the global Redis setup since we handle it in the class
-
 
 class HumanDesignLayer:
     """
@@ -95,20 +78,6 @@ class HumanDesignLayer:
         
         # Calculate the design datetime using 88° solar-arc rule
         self.design_dt = self._calc_design_datetime(birth_dt)
-        
-        # Cache key for Redis storage
-        self.cache_key = self._generate_cache_key()
-    
-    def _generate_cache_key(self) -> str:
-        """Generate Redis cache key for this configuration."""
-        key_data = {
-            'birth_dt': self.birth_dt.isoformat(),
-            'lat': round(self.lat, 6),
-            'lon': round(self.lon, 6),
-            'tzinfo': self.tzinfo
-        }
-        key_string = json.dumps(key_data, sort_keys=True)
-        return f"hd_design:{hashlib.md5(key_string.encode()).hexdigest()}"
     
     def _calc_design_datetime(self, birth_dt: _dt.datetime) -> _dt.datetime:
         """
@@ -123,20 +92,7 @@ class HumanDesignLayer:
             
         Returns:
             Design datetime (approximately 88 days before birth)
-        """        # Check Redis cache first
-        if REDIS_AVAILABLE:
-            try:
-                import redis
-                redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-                cached_result = redis_client.get(self.cache_key)
-                if cached_result:
-                    cached_dt = _dt.datetime.fromisoformat(cached_result)
-                    print(f"[HD] Using cached design datetime: {cached_dt}")
-                    return cached_dt
-            except Exception as e:
-                print(f"[HD] Redis cache read error: {e}")
-        
-        # Calculate Julian Day for birth
+        """        # Calculate Julian Day for birth
         jd_birth = swe.julday(
             birth_dt.year, birth_dt.month, birth_dt.day,
             birth_dt.hour + birth_dt.minute/60 + birth_dt.second/3600
@@ -187,14 +143,6 @@ class HumanDesignLayer:
         
         else:
             print(f"[HD] Warning: Did not converge after 15 iterations, final error: {abs(diff):.6f}°")
-        
-        # Cache result in Redis if available
-        if REDIS_AVAILABLE and redis_client:
-            try:
-                redis_client.setex(self.cache_key, 86400, guess_dt.isoformat())  # 24h TTL
-                print(f"[HD] Cached design datetime: {guess_dt}")
-            except Exception as e:
-                print(f"[HD] Redis cache write error: {e}")
         
         print(f"[HD] Design datetime calculated: {guess_dt} (88° solar-arc from {birth_dt})")
         return guess_dt

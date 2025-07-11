@@ -7,21 +7,19 @@ const useHouseSystems = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchHouseSystems = async () => {
-      try {
-        setLoading(true);
-        const data = await getHouseSystems();
+    setLoading(true);
+    getHouseSystems()
+      .then((data) => {
         setHouseSystems(data.house_systems || []);
         setError(null);
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error('Error fetching house systems:', err);
         setError(err.message);
-      } finally {
+      })
+      .finally(() => {
         setLoading(false);
-      }
-    };
-
-    fetchHouseSystems();
+      });
   }, []);
 
   return { houseSystems, loading, error };

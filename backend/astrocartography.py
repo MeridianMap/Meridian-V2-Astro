@@ -10,7 +10,6 @@ from line_ic_mc import calculate_mc_line, calculate_ic_line
 from line_aspects import calculate_aspect_lines
 from point_influence import calculate_point_influences
 from ephemeris_utils import initialize_ephemeris, ensure_ephemeris_path
-from humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
 
 import numpy as np
 
@@ -19,9 +18,6 @@ initialize_ephemeris()
 
 # --- Hermetic Lot lines (MC/IC only) ---
 def calculate_lot_lines(jd, lots):
-    # Import here to avoid circular import
-    from humandesign_gates import get_gate_from_longitude, get_gate_line_from_longitude
-    
     features = []
     for lot in lots:
         pname = lot["name"]
@@ -37,16 +33,6 @@ def calculate_lot_lines(jd, lots):
                 mc_feature["properties"]["house"] = lot.get("house")
             if lot.get("sign"):
                 mc_feature["properties"]["sign"] = lot.get("sign")
-            # Add Human Design gate information
-            if lot.get("longitude"):
-                gate_info = get_gate_from_longitude(lot.get("longitude"))
-                gate_line_info = get_gate_line_from_longitude(lot.get("longitude"))
-                if gate_info:
-                    mc_feature["properties"]["hd_gate"] = gate_info["gate"]
-                    mc_feature["properties"]["hd_gate_name"] = gate_info["name"]
-                if gate_line_info:
-                    mc_feature["properties"]["hd_gate_line"] = gate_line_info["gate_line"]
-                    mc_feature["properties"]["hd_line"] = gate_line_info["line"]
             features.append(mc_feature)
             
         # IC
@@ -59,16 +45,6 @@ def calculate_lot_lines(jd, lots):
                 ic_feature["properties"]["house"] = lot.get("house")
             if lot.get("sign"):
                 ic_feature["properties"]["sign"] = lot.get("sign")
-            # Add Human Design gate information
-            if lot.get("longitude"):
-                gate_info = get_gate_from_longitude(lot.get("longitude"))
-                gate_line_info = get_gate_line_from_longitude(lot.get("longitude"))
-                if gate_info:
-                    ic_feature["properties"]["hd_gate"] = gate_info["gate"]
-                    ic_feature["properties"]["hd_gate_name"] = gate_info["name"]
-                if gate_line_info:
-                    ic_feature["properties"]["hd_gate_line"] = gate_line_info["gate_line"]
-                    ic_feature["properties"]["hd_line"] = gate_line_info["line"]
             features.append(ic_feature)
     return features
 
@@ -118,8 +94,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                 display_name = f"{pname} CCG"
             elif layer_type == "transit":
                 display_name = f"{pname} Transit"
-            elif layer_type == "HD_DESIGN":
-                display_name = f"{pname} HD"
                   # For CCG layers or planets/lots with pre-calculated RA, use those coordinates
             if (layer_type == "CCG" and "ra" in planet) or (planet.get("data_type") in ["progressed", "transit", "hd_design"] and "ra" in planet):
                 ra_planet = planet.get("ra")
@@ -155,16 +129,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                         mc_feature["properties"]["house"] = planet.get("house")
                     if planet.get("sign"):
                         mc_feature["properties"]["sign"] = planet.get("sign")
-                    # Add Human Design gate information
-                    if planet.get("longitude"):
-                        gate_info = get_gate_from_longitude(planet.get("longitude"))
-                        gate_line_info = get_gate_line_from_longitude(planet.get("longitude"))
-                        if gate_info:
-                            mc_feature["properties"]["hd_gate"] = gate_info["gate"]
-                            mc_feature["properties"]["hd_gate_name"] = gate_info["name"]
-                        if gate_line_info:
-                            mc_feature["properties"]["hd_gate_line"] = gate_line_info["gate_line"]
-                            mc_feature["properties"]["hd_line"] = gate_line_info["line"]
                     features.append(mc_feature)            # IC line (only if IC/MC lines are enabled)
             if filter_options.get('include_ic_mc', True):
                 ic_feature = calculate_ic_line(jd, ra_planet, display_name)
@@ -180,16 +144,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                         ic_feature["properties"]["house"] = planet.get("house")
                     if planet.get("sign"):
                         ic_feature["properties"]["sign"] = planet.get("sign")
-                    # Add Human Design gate information
-                    if planet.get("longitude"):
-                        gate_info = get_gate_from_longitude(planet.get("longitude"))
-                        gate_line_info = get_gate_line_from_longitude(planet.get("longitude"))
-                        if gate_info:
-                            ic_feature["properties"]["hd_gate"] = gate_info["gate"]
-                            ic_feature["properties"]["hd_gate_name"] = gate_info["name"]
-                        if gate_line_info:
-                            ic_feature["properties"]["hd_gate_line"] = gate_line_info["gate_line"]
-                            ic_feature["properties"]["hd_line"] = gate_line_info["line"]
                     features.append(ic_feature)
 
         # --- AC/DC lines (spline-based, all planets, once per chart) ---
@@ -248,10 +202,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                         planet_name = f["properties"].get("planet")
                         if planet_name and not planet_name.endswith(" Transit"):
                             f["properties"]["planet"] = f"{planet_name} Transit"
-                    elif layer_type == "HD_DESIGN":
-                        planet_name = f["properties"].get("planet")
-                        if planet_name and not planet_name.endswith(" HD"):
-                            f["properties"]["planet"] = f"{planet_name} HD"
                     # Keep HORIZON features for display
                     features.append(f)
                     # Split HORIZON feature into AC and DC features for parans only
@@ -278,11 +228,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                                     # Pass through house/sign info from parent feature
                                     "house": f["properties"].get("house"),
                                     "sign": f["properties"].get("sign"),
-                                    # Pass through Human Design gate info from parent feature
-                                    "hd_gate": f["properties"].get("hd_gate"),
-                                    "hd_gate_name": f["properties"].get("hd_gate_name"),
-                                    "hd_line": f["properties"].get("hd_line"),
-                                    "hd_line_name": f["properties"].get("hd_line_name")
                                 }
                             }
                             acdc_segments_for_parans.append(acdc_feat)
@@ -330,10 +275,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                 sign = get_sign_from_longitude(longitude)
                 house = get_house_from_longitude(longitude, house_cusps) if all(h is not None for h in house_cusps) else None
                 
-                # Calculate Human Design gate information
-                gate_info = get_gate_from_longitude(longitude)
-                gate_line_info = get_gate_line_from_longitude(longitude)
-                
                 star_properties = {
                     "star": star_name,
                     "star_key": star_name,
@@ -345,14 +286,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                 }
                 if house:
                     star_properties["house"] = house
-                
-                # Add Human Design gate information
-                if gate_info:
-                    star_properties["hd_gate"] = gate_info["gate"]
-                    star_properties["hd_gate_name"] = gate_info["name"]
-                if gate_line_info:
-                    star_properties["hd_gate_line"] = gate_line_info["gate_line"]
-                    star_properties["hd_line"] = gate_line_info["line"]
                 
                 features.append({
                     "type": "Feature",
@@ -398,14 +331,10 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                             line_key = name + "_" + f["properties"].get("line_type", "")
                             aspect_lines_dict.setdefault(line_key, []).append(f["geometry"]["coordinates"])                            # Store planet house/sign info for parans
                             planet_base_name = name.replace(" CCG", "").replace(" Transit", "").replace(" HD", "")
-                            if f["properties"].get("house") or f["properties"].get("sign") or f["properties"].get("hd_gate"):
+                            if f["properties"].get("house") or f["properties"].get("sign"):
                                 planet_info_dict[planet_base_name] = {
                                     "house": f["properties"].get("house"),
                                     "sign": f["properties"].get("sign"),
-                                    "hd_gate": f["properties"].get("hd_gate"),
-                                    "hd_gate_name": f["properties"].get("hd_gate_name"),
-                                    "hd_line": f["properties"].get("hd_line"),
-                                    "hd_line_name": f["properties"].get("hd_line_name")
                                 }                # Flatten coordinate lists for each line
                 aspect_lines_dict = {k: [pt for seg in v for pt in seg] for k, v in aspect_lines_dict.items()}
                 crossing_features = find_line_crossings_and_latitude_lines(aspect_lines_dict)
@@ -429,14 +358,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                                 cf["properties"][f"{planet1}_house"] = info.get("house")
                             if info.get("sign"):
                                 cf["properties"][f"{planet1}_sign"] = info.get("sign")
-                            if info.get("hd_gate"):
-                                cf["properties"][f"{planet1}_hd_gate"] = info.get("hd_gate")
-                            if info.get("hd_gate_name"):
-                                cf["properties"][f"{planet1}_hd_gate_name"] = info.get("hd_gate_name")
-                            if info.get("hd_line"):
-                                cf["properties"][f"{planet1}_hd_line"] = info.get("hd_line")
-                            if info.get("hd_line_name"):
-                                cf["properties"][f"{planet1}_hd_line_name"] = info.get("hd_line_name")
                         
                         if planet2 in planet_info_dict:
                             info = planet_info_dict[planet2]
@@ -444,14 +365,6 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                                 cf["properties"][f"{planet2}_house"] = info.get("house")
                             if info.get("sign"):
                                 cf["properties"][f"{planet2}_sign"] = info.get("sign")
-                            if info.get("hd_gate"):
-                                cf["properties"][f"{planet2}_hd_gate"] = info.get("hd_gate")
-                            if info.get("hd_gate_name"):
-                                cf["properties"][f"{planet2}_hd_gate_name"] = info.get("hd_gate_name")
-                            if info.get("hd_line"):
-                                cf["properties"][f"{planet2}_hd_line"] = info.get("hd_line")
-                            if info.get("hd_line_name"):
-                                cf["properties"][f"{planet2}_hd_line_name"] = info.get("hd_line_name")
                 
                 features.extend(crossing_features)
             except Exception as err:
@@ -459,7 +372,7 @@ def generate_all_astrocartography_features(chart_data: Dict, filter_options: Dic
                 import traceback
                 traceback.print_exc()          # --- Ensure all overlay features are labeled with their layer type ---
         layer_type = filter_options.get('layer_type')
-        if layer_type in ['CCG', 'transit', 'HD_DESIGN']:
+        if layer_type in ['CCG', 'transit']:
             for f in features:
                 if 'properties' in f:
                     f['properties']['layer'] = layer_type
