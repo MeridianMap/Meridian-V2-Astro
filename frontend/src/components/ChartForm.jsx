@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { calculateChart } from '../apiClient';
 import useCitySuggestions from '../hooks/useCitySuggestions';
 
 function ChartForm({ formData, setFormData, setChartData, setLoading, setProgress, setError, error, onSubmit }) {
   const dropdownRef = useRef(null);
+  const [houseSystems, setHouseSystems] = useState([]);
+  const [houseSystemInfo, setHouseSystemInfo] = useState({});
   const {
     suggestions,
     showSuggestions,
@@ -12,7 +14,33 @@ function ChartForm({ formData, setFormData, setChartData, setLoading, setProgres
   } = useCitySuggestions(formData, setFormData);
   
   useEffect(() => {
-    // Removed `fetchHouseSystems` function and its usage
+    // Fetch house systems from backend
+    const fetchHouseSystems = async () => {
+      try {
+        const response = await fetch('/api/house-systems');
+        const data = await response.json();
+        if (data.house_systems) {
+          setHouseSystems(data.house_systems);
+          // Create a lookup object for descriptions
+          const infoLookup = {};
+          data.house_systems.forEach(system => {
+            infoLookup[system.id] = system;
+          });
+          setHouseSystemInfo(infoLookup);
+        }
+      } catch (err) {
+        console.error('Failed to fetch house systems:', err);
+        // Fallback to basic house systems if API fails
+        setHouseSystems([
+          { id: 'whole_sign', name: 'Whole Sign', description: 'Each zodiac sign equals one house' },
+          { id: 'placidus', name: 'Placidus', description: 'Most popular modern system' },
+          { id: 'koch', name: 'Koch', description: 'Similar to Placidus' },
+          { id: 'equal', name: 'Equal House', description: 'Equal 30° segments from Ascendant' }
+        ]);
+      }
+    };
+    
+    fetchHouseSystems();
   }, [setError]);
 
   const handleFormChange = (e) => {
@@ -98,9 +126,23 @@ function ChartForm({ formData, setFormData, setChartData, setLoading, setProgres
             fontSize: '1rem'
           }}
         >
-          {/* Options for house systems would go here */}
+          {houseSystems.map(system => (
+            <option key={system.id} value={system.id}>
+              {system.name}
+            </option>
+          ))}
         </select>
-        {/* Description for the selected house system would go here */}
+        {/* Description for the selected house system */}
+        {houseSystemInfo[formData.house_system || 'whole_sign'] && (
+          <p style={{ 
+            marginTop: '0.5rem', 
+            fontSize: '0.9rem', 
+            color: '#666',
+            fontStyle: 'italic'
+          }}>
+            {houseSystemInfo[formData.house_system || 'whole_sign'].description}
+          </p>
+        )}
       </div>
       
       <button type="submit">Generate All Charts</button>

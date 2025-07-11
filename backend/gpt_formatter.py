@@ -2,13 +2,12 @@
 GPT Formatter Module for Meridian Astrology
 Transforms comprehensive chart calculations into GPT-digestible format
 
-**UPDATED: Now uses GPT Formatter v3.2 by default for hardened astrological analysis**
-- format_for_gpt() → v3.2 format with stricter aspect filtering, gate validation & enhanced quality controls
+**UPDATED: Now uses GPT Formatter v4_astro by default for enhanced astrological analysis**
+- format_for_gpt() → v4_astro format with stricter aspect filtering & enhanced quality controls
 - format_for_gpt_v2() → v2.3.2 verbose format (for backward compatibility)
 
-v3.2 Features:
+v4_astro Features:
 - Hardened aspect filtering with stricter orb limits (0.5°/0.3°/0.15°)
-- Strict Human Design gate validation (1-64 range with error handling)
 - Day/night aware Arabic lots calculations
 - Enhanced body classification (luminaries/planets/asteroids)
 - Quality controls with ASC/DESC validation and modality order enforcement
@@ -17,8 +16,6 @@ This module handles:
 - Location validation and formatting
 - Natal chart summary with core elements including angles and aspects
 - Transit chart (current planetary positions) with aspects to natal
-- Design chart (88 solar arc degrees prior to natal) with expanded planetary set
-- Human Design gate assignments for all planets
 - Synthesis and interpretation framework
 
 Note: Astrocartography information is excluded from this module
@@ -59,9 +56,9 @@ class GPTFormatter:
         self.max_aspects = 12  # Increased for more comprehensive aspect analysis
         self._jd_utc = None  # Will be set during calculation for metadata audit trail
         
-        # Core 10 + Nodes + Major asteroids + Black Moon Lilith for complete coverage
+        # Core 10 + Nodes + Major asteroids for complete astrological coverage
         self.key_planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "North Node", "South Node"]
-        self.design_planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", 
+        self.extended_planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", 
                               "Uranus", "Neptune", "Pluto", "North Node", "South Node", "Chiron", 
                               "Ceres", "Pallas", "Juno", "Vesta", "Black Moon Lilith", "Pallas Athena", "Pholus"]
         
@@ -85,14 +82,13 @@ class GPTFormatter:
             "asteroid": 1.5
         }
         
-    def format_comprehensive_calculation(self, natal_data, transit_data=None, design_data=None, request_metadata=None):
+    def format_comprehensive_calculation(self, natal_data, transit_data=None, request_metadata=None):
         """
         Main entry point: Transform calculation results into GPT format
         
         Args:
             natal_data (dict): Natal chart calculation results
             transit_data (dict): Current transit calculations (optional)
-            design_data (dict): Design chart calculations (optional)
             request_metadata (dict): Original request data for context
             
         Returns:
@@ -102,7 +98,7 @@ class GPTFormatter:
             logger.info("🤖 Formatting comprehensive calculation for GPT")
             
             # Extract and set Julian Day from available data
-            self._set_julian_day_from_data(natal_data, transit_data, design_data, request_metadata)
+            self._set_julian_day_from_data(natal_data, transit_data, request_metadata)
             
             # Create GPT-optimized response
             gpt_response = {
@@ -111,27 +107,25 @@ class GPTFormatter:
                     "calculation_timestamp": datetime.utcnow().isoformat(),
                     "julian_day": self._jd_utc,               # float, same precision as swe_julday
                     "ephemeris_version": swe.version,          # e.g. "Swiss Ephemeris 2.10"
-                    "data_sources": self._identify_data_sources(natal_data, transit_data, design_data),
+                    "data_sources": self._identify_data_sources(natal_data, transit_data),
                     "optimization_level": "gpt_digest",
                     "token_efficiency": "high",
-                    "orb_policy": self.orb_policy
+                    "orb_policy": self.orb_policy,
+                    "birth": {
+                        "subject": self._extract_birth_profile(natal_data, request_metadata)
+                    }
                 },
-                "birth_profile": self._extract_birth_profile(natal_data, request_metadata),
                 "natal": self._format_natal_summary(natal_data),
-                "interpretation_framework": self._build_interpretation_framework(natal_data, transit_data, design_data)
+                "interpretation_framework": self._build_interpretation_framework(natal_data, transit_data)
             }
             
             # Add transit section if data available
             if transit_data and "error" not in transit_data:
                 gpt_response["transit"] = self._format_transit_summary(transit_data, natal_data)
             
-            # Add design section if data available  
-            if design_data and "error" not in design_data:
-                gpt_response["design"] = self._format_design_summary(design_data, natal_data)
-            
             # Add synthesis if multiple data sources
             if len(gpt_response["metadata"]["data_sources"]) > 1:
-                gpt_response["synthesis"] = self._create_synthesis_summary(natal_data, transit_data, design_data)
+                gpt_response["synthesis"] = self._create_synthesis_summary(natal_data, transit_data)
             
             logger.info(f"✅ GPT formatting complete. Sections: {list(gpt_response.keys())}")
             return gpt_response
@@ -143,7 +137,7 @@ class GPTFormatter:
                 "metadata": {"formatter_version": self.version, "status": "failed"}
             }
     
-    def _identify_data_sources(self, natal_data, transit_data, design_data):
+    def _identify_data_sources(self, natal_data, transit_data):
         """Identify which data sources are available"""
         sources = []
         
@@ -151,15 +145,13 @@ class GPTFormatter:
             sources.append("natal")
         if transit_data and "error" not in transit_data:
             sources.append("transit")
-        if design_data and "error" not in design_data:
-            sources.append("design")
             
         return sources
     
-    def _set_julian_day_from_data(self, natal_data, transit_data, design_data, request_metadata):
+    def _set_julian_day_from_data(self, natal_data, transit_data, request_metadata):
         """Extract and set Julian Day from available calculation data for audit trail"""
         try:
-            # Priority order: natal_data -> transit_data -> design_data -> calculate from request_metadata
+            # Priority order: natal_data -> transit_data -> calculate from request_metadata
             
             # Try to get from natal data first
             if natal_data and "julian_day" in natal_data:
@@ -169,11 +161,6 @@ class GPTFormatter:
             # Try transit data
             if transit_data and "julian_day" in transit_data:
                 self._jd_utc = transit_data["julian_day"]
-                return
-                
-            # Try design data  
-            if design_data and "julian_day" in design_data:
-                self._jd_utc = design_data["julian_day"]
                 return
             
             # Fallback: calculate from request metadata if available
@@ -197,6 +184,19 @@ class GPTFormatter:
                         return
                     except (ValueError, TypeError) as e:
                         logger.warning(f"Could not parse birth date/time for Julian Day: {e}")
+            
+            # Final fallback: use current time
+            now = datetime.utcnow()
+            self._jd_utc = swe.julday(now.year, now.month, now.day, 
+                                     now.hour + now.minute/60.0 + now.second/3600.0)
+            logger.info(f"Using current time for Julian Day: {self._jd_utc}")
+            
+        except Exception as e:
+            logger.warning(f"Could not set Julian Day: {e}")
+            # Set to current time as ultimate fallback
+            now = datetime.utcnow()
+            self._jd_utc = swe.julday(now.year, now.month, now.day, 
+                                     now.hour + now.minute/60.0 + now.second/3600.0)
             
             # Final fallback: use current time
             now = datetime.utcnow()
@@ -298,35 +298,7 @@ class GPTFormatter:
             "interpretation_priority": "present_moment_influences_and_timing"
         }
     
-    def _format_design_summary(self, design_data, natal_data):
-        """
-        Format Human Design data with 'design' tag
-        Focus on unconscious patterns and blueprint
-        """
-        if not design_data or "error" in design_data:
-            return {
-                "tag": "design",
-                "status": "unavailable",
-                "error": design_data.get("error", "No design data") if design_data else "No design data"
-            }
-        
-        design_planets = design_data.get("planets", {})
-        natal_planets = natal_data.get("planets", {})
-        
-        return {
-            "tag": "design",
-            "status": "available",
-            "calculation_info": {
-                "method": "88_solar_arc_degrees_prior",
-                "time_offset": "approximately_88_days_before_birth",
-                "purpose": "unconscious_blueprint_and_genetic_imprint"
-            },
-            "design_planetary_positions": self._format_design_positions(design_planets),
-            "design_vs_personality_detailed": self._format_design_vs_natal_detailed(design_planets, natal_planets),
-            "interpretation_priority": "unconscious_patterns_and_genetic_blueprint"
-        }
-    
-    def _create_synthesis_summary(self, natal_data, transit_data, design_data):
+    def _create_synthesis_summary(self, natal_data, transit_data):
         """
         Create synthesis across all calculation types
         """
@@ -335,52 +307,45 @@ class GPTFormatter:
             available_layers.append("natal")
         if transit_data and "error" not in transit_data:
             available_layers.append("transit")
-        if design_data and "error" not in design_data:
-            available_layers.append("design")
         
         return {
             "available_layers": available_layers,
             "integration_approach": {
-                "foundation": "Natal chart provides conscious identity and life purpose",
-                "timing": "Transits show current influences and timing" if "transit" in available_layers else "Not available",
-                "blueprint": "Design chart reveals unconscious patterns" if "design" in available_layers else "Not available"
+                "foundation": "Natal chart provides core identity and life purpose",
+                "timing": "Transits show current influences and timing" if "transit" in available_layers else "Not available"
             },
-            "synthesis_themes": self._identify_synthesis_themes(natal_data, transit_data, design_data),
+            "synthesis_themes": self._identify_synthesis_themes(natal_data, transit_data),
             "interpretation_priority": "holistic_understanding_through_layered_analysis"
         }
     
-    def _build_interpretation_framework(self, natal_data, transit_data, design_data):
+    def _build_interpretation_framework(self, natal_data, transit_data):
         """
         Build framework to guide GPT interpretation
         """
-        available_data = self._identify_data_sources(natal_data, transit_data, design_data)
+        available_data = self._identify_data_sources(natal_data, transit_data)
         
         # Build interpretation sequence based on available data
         sequence = ["establish_natal_foundation"]
         focus_areas = ["sun_moon_rising", "chart_ruler", "major_aspects"]
-        
-        if "design" in available_data:
-            sequence.append("integrate_unconscious_design_patterns")
-            focus_areas.append("design_vs_natal_differences")
         
         if "transit" in available_data:
             sequence.append("assess_current_timing_and_influences")
             focus_areas.append("current_planetary_emphasis")
         
         if len(available_data) > 1:
-            sequence.append("synthesize_conscious_unconscious_current")
+            sequence.append("synthesize_natal_and_current_influences")
         
         return {
             "interpretation_sequence": sequence,
             "focus_areas": focus_areas,
-            "approach": "layer_conscious_unconscious_temporal",
+            "approach": "layer_natal_with_temporal",
             "depth_level": "comprehensive_yet_accessible",
             "guidance_style": "empowering_and_practical"
         }
     
     # Helper methods for data extraction
     def _extract_planet_essence(self, planets, planet_name):
-        """Extract essential planet information with Human Design gates and v2.3.1 motion data"""
+        """Extract essential planet information with astrological data"""
         # Handle planets as list of dictionaries
         if isinstance(planets, list):
             for planet in planets:
@@ -394,9 +359,6 @@ class GPTFormatter:
                         "retrograde": planet.get("retrograde", False),
                         "speed": round_precision(planet.get("speed", 0.0), 4),  # v2.3.1: Daily motion
                         "declination": round_precision(planet.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                        "gate": planet.get("gate", "Unknown"),
-                        "gate_name": planet.get("gate_name", "Unknown"),
-                        "gate_line": planet.get("gate_line", None),  # Integer line for math
                         "interpretation_key": f"{planet_name} in {planet.get('sign', 'Unknown')} in House {planet.get('house', 'Unknown')}"
                     }
         # Handle planets as dictionary (legacy support)
@@ -412,9 +374,6 @@ class GPTFormatter:
                     "retrograde": planet_data.get("retrograde", False),
                     "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
                     "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_data.get("gate", "Unknown"),
-                    "gate_name": planet_data.get("gate_name", "Unknown"),
-                    "gate_line": planet_data.get("gate_line", None),  # Integer line for math
                     "interpretation_key": f"{planet_name} in {planet_data.get('sign', 'Unknown')} in House {planet_data.get('house', 'Unknown')}"
                 }
         
@@ -662,7 +621,7 @@ class GPTFormatter:
             return "Balanced aspect mix (varied life experiences)"
     
     def _format_current_positions(self, current_planets):
-        """Format current planetary positions with gates and universal body coverage"""
+        """Format current planetary positions with universal body coverage"""
         formatted = {}
         included_bodies = []
         
@@ -690,9 +649,6 @@ class GPTFormatter:
                     "retrograde": planet_data.get("retrograde", False),
                     "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
                     "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_data.get("gate", "Unknown"),
-                    "gate_name": planet_data.get("gate_name", "Unknown"),
-                    "gate_line": planet_data.get("gate_line", None)  # Integer line for math
                 }
                 included_bodies.append(planet_name)
         
@@ -805,101 +761,20 @@ class GPTFormatter:
         
         return comparisons
     
-    def _identify_synthesis_themes(self, natal_data, transit_data, design_data):
+    def _identify_synthesis_themes(self, natal_data, transit_data):
         """Identify major synthesis themes across all data"""
         themes = []
         
         if natal_data and "error" not in natal_data:
             themes.append("Core identity and life purpose from natal chart")
         
-        if design_data and "error" not in design_data:
-            themes.append("Unconscious patterns and genetic blueprint from design chart")
-        
         if transit_data and "error" not in transit_data:
             themes.append("Current timing and environmental influences from transits")
         
         if len(themes) > 1:
-            themes.append("Integration of conscious and unconscious elements in present context")
+            themes.append("Integration of natal foundation with current influences")
         
         return themes
-    
-    def _format_design_positions(self, design_planets):
-        """Format design chart planetary positions for all design planets including gates"""
-        formatted = {}
-        included_bodies = []
-        
-        # Use all_calculated_bodies for complete coverage in design chart
-        for planet_name in self.all_calculated_bodies:
-            planet_data = None
-            
-            # Handle planets as list of dictionaries
-            if isinstance(design_planets, list):
-                for planet in design_planets:
-                    if isinstance(planet, dict) and planet.get('name') == planet_name:
-                        planet_data = planet
-                        break
-            # Handle planets as dictionary (legacy support)
-            elif isinstance(design_planets, dict) and planet_name in design_planets:
-                planet_data = design_planets[planet_name]
-            
-            if planet_data and isinstance(planet_data, dict):
-                # v2.3: Nodes always have retrograde=true per requirement
-                retrograde_status = planet_data.get("retrograde", False)
-                
-                # Use longitude for degree field (v2.3.1 schema compliance)
-                longitude = planet_data.get('longitude', 0)
-                formatted[planet_name.lower().replace(" ", "_")] = {
-                    "sign": planet_data.get("sign", "Unknown"),
-                    "degree": round_precision(longitude, 4),  # 4 decimal precision
-                    "house": planet_data.get("house", "Unknown"),
-                    "retrograde": retrograde_status,
-                    "speed": round_precision(planet_data.get("speed", 0.0), 4),  # v2.3.1: Daily motion
-                    "declination": round_precision(planet_data.get("declination", 0.0), 4),  # v2.3.1: Celestial latitude
-                    "gate": planet_data.get("gate", "Unknown"),
-                    "gate_name": planet_data.get("gate_name", "Unknown"),
-                    "gate_line": planet_data.get("gate_line", None),
-                    "chart_type": "design_unconscious"
-                }
-                included_bodies.append(planet_name)
-        
-        # Auto-populate included_bodies
-        formatted["included_bodies"] = included_bodies
-        
-        return formatted
-    
-
-    def _format_design_vs_natal_detailed(self, design_planets, natal_planets):
-        """Create detailed planet-by-planet comparison between design and natal"""
-        detailed_comparison = {}
-        
-        if not isinstance(design_planets, list) or not isinstance(natal_planets, list):
-            return detailed_comparison
-        
-        # Create lookup dictionaries
-        natal_lookup = {p.get('name'): p for p in natal_planets if isinstance(p, dict)}
-        design_lookup = {p.get('name'): p for p in design_planets if isinstance(p, dict)}
-        
-        # Use all_calculated_bodies for complete comparison including asteroids
-        for planet_name in self.all_calculated_bodies:
-            natal_planet = natal_lookup.get(planet_name)
-            design_planet = design_lookup.get(planet_name)
-            
-            if natal_planet and design_planet:
-                natal_sign = natal_planet.get('sign', 'Unknown')
-                design_sign = design_planet.get('sign', 'Unknown')
-                
-                # Create integration note
-                if natal_sign == design_sign:
-                    integration_note = f"Unified {natal_sign} expression - conscious and unconscious alignment"
-                else:
-                    integration_note = f"Integration of unconscious {design_sign} patterns with conscious {natal_sign} expression"
-                
-                detailed_comparison[planet_name.lower().replace(" ", "_")] = {
-                    "natal_sign": natal_sign,
-                    "design_sign": design_sign,
-                    "integration_note": integration_note
-                }
-        return detailed_comparison
     
     def _extract_angles(self, houses):
         """Extract the four angles (AC, DC, MC, IC) with degrees and signs"""
@@ -1114,18 +989,17 @@ class GPTFormatter:
     
 
 # Convenience functions for easy import and use
-def format_for_gpt(natal_data, transit_data=None, design_data=None, request_metadata=None):
+def format_for_gpt(natal_data, transit_data=None, request_metadata=None):
     """
-    Convenience function to format calculation results for GPT using v3.3 format
+    Convenience function to format calculation results for GPT using v4_astro format
     
     Args:
         natal_data (dict): Natal chart calculation results
         transit_data (dict): Transit calculation results (optional)
-        design_data (dict): Design chart calculation results (optional)
         request_metadata (dict): Original request data for context
         
     Returns:
-        dict: GPT v3.3 format with tightened aspect filtering (5 major only), house cusps & birth metadata
+        dict: GPT v4_astro format with tightened aspect filtering (5 major only), house cusps & birth metadata
     """
     # Import v3.1 formatter with proper path handling
     import sys
@@ -1156,9 +1030,9 @@ def format_for_gpt(natal_data, transit_data=None, design_data=None, request_meta
         gpt_formatter_v3_3 = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gpt_formatter_v3_3)
         
-        # Use v3.3 formatter for latest features (tightened aspects, house cusps, birth metadata)
+        # Use v4_astro formatter for latest features (tightened aspects, house cusps, birth metadata)
         result = gpt_formatter_v3_3.generate(natal_data=natal_data, transit_data=transit_data, 
-                                           design_data=design_data, request_metadata=request_metadata)
+                                           request_metadata=request_metadata)
         return result
     finally:
         # Restore original sys.path to avoid conflicts
@@ -1176,7 +1050,7 @@ def format_natal_only(natal_data, request_metadata=None):
     Returns:
         dict: GPT-optimized natal format
     """
-    return format_for_gpt(natal_data, None, None, request_metadata)
+    return format_for_gpt(natal_data, None, request_metadata)
 
 
 def format_with_transits(natal_data, transit_data, request_metadata=None):
@@ -1191,37 +1065,21 @@ def format_with_transits(natal_data, transit_data, request_metadata=None):
     Returns:
         dict: GPT-optimized format with transits
     """
-    return format_for_gpt(natal_data, transit_data, None, request_metadata)
+    return format_for_gpt(natal_data, transit_data, request_metadata)
 
 
-def format_with_design(natal_data, design_data, request_metadata=None):
-    """
-    Format natal chart with design chart for GPT
-    
-    Args:
-        natal_data (dict): Natal chart calculation results
-        design_data (dict): Design chart calculation results  
-        request_metadata (dict): Original request data for context
-        
-    Returns:
-        dict: GPT-optimized format with design
-    """
-    return format_for_gpt(natal_data, None, design_data, request_metadata)
-
-
-def format_for_gpt_v2(natal_data, transit_data=None, design_data=None, request_metadata=None):
+def format_for_gpt_v2(natal_data, transit_data=None, request_metadata=None):
     """
     Legacy v2.3.2 formatter - produces verbose output (for backward compatibility)
-    Use format_for_gpt() for new v3.2 format with hardened aspects, gate validation & quality controls
+    Use format_for_gpt() for new v4_astro format with enhanced astrological analysis
     
     Args:
         natal_data (dict): Natal chart calculation results
         transit_data (dict): Transit calculation results (optional)
-        design_data (dict): Design chart calculation results (optional)
         request_metadata (dict): Original request data for context
         
     Returns:
         dict: GPT v2.3.2 verbose format
     """
     formatter = GPTFormatter()
-    return formatter.format_comprehensive_calculation(natal_data, transit_data, design_data, request_metadata)
+    return formatter.format_comprehensive_calculation(natal_data, transit_data, request_metadata)
