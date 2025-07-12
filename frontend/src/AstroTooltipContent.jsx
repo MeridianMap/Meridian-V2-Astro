@@ -108,11 +108,18 @@ const AstroTooltipContent = ({ feat, label }) => {
   const labelParts = parseLabel(label);
   const alreadyRendered = new Set();
 
-  // --- Always try to render the definition for the feature id (for multi-word features, lots, etc.) ---
+  // Collect planet/body definitions first
+  const planetDefinitions = [];
+  const houseDefinitions = [];
+  const signDefinitions = [];
+  const aspectDefinitions = [];
+
+  // --- 1. PLANET/BODY DEFINITIONS ---
+  // Always try to render the definition for the feature id (for multi-word features, lots, etc.)
   const featureId = getFeatureId(feat);
   let idDefRendered = false;
   if (featureId && getFullDef(featureId) && !alreadyRendered.has(featureId)) {
-    lines.push(renderDefLine(featureId, getFullDef(featureId)));
+    planetDefinitions.push(renderDefLine(featureId, getFullDef(featureId)));
     alreadyRendered.add(featureId);
     idDefRendered = true;
   }
@@ -124,77 +131,23 @@ const AstroTooltipContent = ({ feat, label }) => {
     getFullDef(displayName) &&
     !alreadyRendered.has(displayName)
   ) {
-    lines.push(renderDefLine(displayName, getFullDef(displayName)));
+    planetDefinitions.push(renderDefLine(displayName, getFullDef(displayName)));
     alreadyRendered.add(displayName);
   }
 
-  // --- Aspect and multi-word logic ---
-  if (labelParts.length >= 3) {
-    const aspect = labelParts[labelParts.length - 2];
-    const angle = labelParts[labelParts.length - 1];
-    const bodyParts = labelParts.slice(0, labelParts.length - 2);
-    const fullBody = bodyParts.join(" ");
-    // Only render body definition if not already rendered
-    if (bodyParts.length > 0 && getFullDef(fullBody) && !alreadyRendered.has(fullBody)) {
-      lines.push(renderDefLine(fullBody, getFullDef(fullBody)));
-      alreadyRendered.add(fullBody);
-      bodyParts.forEach(part => alreadyRendered.add(part));
-    } else if (bodyParts.length === 1 && getFullDef(bodyParts[0]) && !alreadyRendered.has(bodyParts[0])) {
-      lines.push(renderDefLine(bodyParts[0], getFullDef(bodyParts[0])));
-      alreadyRendered.add(bodyParts[0]);
-    }
-    // Aspect line
-    const aspectLineKey = `${capitalize(aspect)} ${normalizeLabelPart(angle)}`;
-    if (getDef("aspectLines", aspectLineKey) && !alreadyRendered.has(aspectLineKey)) {
-      lines.push(renderDefLine(aspectLineKey, getDef("aspectLines", aspectLineKey)));
-      alreadyRendered.add(aspectLineKey);
-      alreadyRendered.add(aspect);
-      alreadyRendered.add(angle);
-    } else {
-      if (!alreadyRendered.has(aspect) && getFullDef(aspect)) {
-        lines.push(renderDefLine(aspect, getFullDef(aspect)));
-        alreadyRendered.add(aspect);
-      }
-      if (!alreadyRendered.has(angle) && getFullDef(angle)) {
-        lines.push(renderDefLine(angle, getFullDef(angle)));
-        alreadyRendered.add(angle);
-      }
-    }
-  } else {
-    // Multi-word fallback
-    for (let len = labelParts.length; len >= 2; len--) {
-      for (let start = 0; start <= labelParts.length - len; start++) {
-        const joined = labelParts.slice(start, start + len).join(" ");
-        if (getFullDef(joined) && !alreadyRendered.has(joined)) {
-          lines.push(renderDefLine(joined, getFullDef(joined)));
-          alreadyRendered.add(joined);
-          for (let k = start; k < start + len; k++) {
-            alreadyRendered.add(labelParts[k]);
-          }
-        }
-      }
-    }
-    labelParts.forEach((part) => {
-      if (!alreadyRendered.has(part) && getFullDef(part)) {
-        lines.push(renderDefLine(part, getFullDef(part)));
-        alreadyRendered.add(part);
-      }
-    });
-  }
-
-  // --- Parans: show both planets and both angles, no duplicates ---
+  // Parans: show both planets and both angles, no duplicates
   if ((type === "paran" || feat.properties.category === "parans") && Array.isArray(feat.properties.source_lines)) {
     const sourceLines = feat.properties.source_lines;
     sourceLines.forEach(sourceLine => {
       if (sourceLine && sourceLine.includes("_")) {
         const planetName = sourceLine.split("_")[0].replace(/ (CCG|Transit|HD)$/g, "");
         if (planetName && getFullDef(planetName) && !alreadyRendered.has(planetName)) {
-          lines.push(renderDefLine(planetName, getFullDef(planetName)));
+          planetDefinitions.push(renderDefLine(planetName, getFullDef(planetName)));
           alreadyRendered.add(planetName);
         }
         const angleName = sourceLine.split("_")[1];
         if (angleName && getFullDef(angleName) && !alreadyRendered.has(angleName)) {
-          lines.push(renderDefLine(angleName, getFullDef(angleName)));
+          aspectDefinitions.push(renderDefLine(angleName, getFullDef(angleName)));
           alreadyRendered.add(angleName);
         }
       }
@@ -203,101 +156,61 @@ const AstroTooltipContent = ({ feat, label }) => {
     // fallback for old-style parans
     planets.forEach((p) => {
       if (p && getFullDef(p) && !alreadyRendered.has(p)) {
-        lines.push(renderDefLine(p, getFullDef(p)));
+        planetDefinitions.push(renderDefLine(p, getFullDef(p)));
         alreadyRendered.add(p);
       }
     });
     if (Array.isArray(angles)) {
       angles.forEach((a) => {
         if (a && getFullDef(a) && !alreadyRendered.has(a)) {
-          lines.push(renderDefLine(a, getFullDef(a)));
+          aspectDefinitions.push(renderDefLine(a, getFullDef(a)));
           alreadyRendered.add(a);
         }      });
     }
   }
-  
-  // --- PARANS HUMAN DESIGN GATE BLOCK ---
-  // Show Human Design gate info for planets involved in parans crossings
-  if ((type === "paran" || feat.properties.category === "parans") && Array.isArray(feat.properties.source_lines)) {
-    const sourceLines = feat.properties.source_lines;
-    sourceLines.forEach(sourceLine => {
-      if (sourceLine && sourceLine.includes("_")) {
-        const planetName = sourceLine.split("_")[0].replace(/ (CCG|Transit|HD)$/g, "");
-          // Look for Human Design gate info for this planet in the properties
-        const gateKey = `${planetName}_hd_gate`;
-        const gateNameKey = `${planetName}_hd_gate_name`;
-        const lineKey = `${planetName}_hd_line`;
-        
-        if (feat.properties[gateKey]) {          const gateNumber = feat.properties[gateKey];
-          const gateName = feat.properties[gateNameKey] || "";
-          const lineNumber = feat.properties[lineKey] || "";
-          
-          const gateId = `${planetName}_gate_${gateNumber}`;
-          if (!alreadyRendered.has(gateId)) {
-            // Display gate info for this planet
-            lines.push(
-              renderDefLine(
-                `${planetName} Gate ${gateNumber}${gateName ? ` (${gateName})` : ""}`,
-                getDef("humanDesignGates", gateNumber.toString()) || ""
-              )
-            );
-            alreadyRendered.add(gateId);
-            
-            // Display line info if available
-            if (lineNumber) {
-              const lineId = `${planetName}_line_${gateNumber}_${lineNumber}`;
-              if (!alreadyRendered.has(lineId)) {
-                lines.push(
-                  renderDefLine(
-                    `${planetName} Line ${lineNumber}`,
-                    getDef("humanDesignLines", `${gateNumber}.${lineNumber}`) || ""
-                  )
-                );
-                alreadyRendered.add(lineId);
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-  
+
   // Fixed stars: always show definition
   if ((type === "fixed_star" || type === "star" || star)) {
     const starName = star || planet;
     if (starName && getFullDef(starName) && !alreadyRendered.has(starName)) {
-      lines.push(renderDefLine(starName, getFullDef(starName)));
+      planetDefinitions.push(renderDefLine(starName, getFullDef(starName)));
       alreadyRendered.add(starName);
     }
   }
-  // --- UNIVERSAL HUMAN DESIGN GATE BLOCK ---
-  if (feat.properties.hd_gate) {
-    const gateName = feat.properties.hd_gate_name || "";
-    const gateNumber = feat.properties.hd_gate;
-    const lineNumber = feat.properties.hd_line || "";
-    // Display gate number and name
-    lines.push(
-      renderDefLine(
-        `Gate ${gateNumber}${gateName ? ` (${gateName})` : ""}`,
-        getDef("humanDesignGates", gateNumber.toString()) || ""
-      )
-    );
-    // Display gate line if available
-    if (lineNumber) {
-      lines.push(
-        renderDefLine(
-          `Line ${lineNumber}`,
-          getDef("humanDesignLines", `${gateNumber}.${lineNumber}`) || ""
-        )
-      );
+
+  // Handle remaining planets from label parsing
+  labelParts.forEach((part) => {
+    if (!alreadyRendered.has(part) && getFullDef(part)) {
+      // Check if it's a planet/body/asteroid
+      if (getDef("planets", part) || getDef("asteroids", part) || getDef("lunarPoints", part) || getDef("hermeticLots", part) || getDef("fixedStars", part)) {
+        planetDefinitions.push(renderDefLine(part, getFullDef(part)));
+        alreadyRendered.add(part);
+      }
+    }
+  });
+
+  // Multi-word planet/body handling
+  for (let len = labelParts.length; len >= 2; len--) {
+    for (let start = 0; start <= labelParts.length - len; start++) {
+      const joined = labelParts.slice(start, start + len).join(" ");
+      if (getFullDef(joined) && !alreadyRendered.has(joined)) {
+        // Check if it's a planet/body/asteroid
+        if (getDef("planets", joined) || getDef("asteroids", joined) || getDef("lunarPoints", joined) || getDef("hermeticLots", joined) || getDef("fixedStars", joined)) {
+          planetDefinitions.push(renderDefLine(joined, getFullDef(joined)));
+          alreadyRendered.add(joined);
+          for (let k = start; k < start + len; k++) {
+            alreadyRendered.add(labelParts[k]);
+          }
+        }
+      }
     }
   }
-  // --- UNIVERSAL HOUSE AND SIGN BLOCK ---
-  // Show house and sign independently if they exist
+
+  // --- 2. HOUSE DEFINITIONS ---
   if (feat.properties.house != null) {
     const houseDef = getDef("houses", String(feat.properties.house));
     if (houseDef) {
-      lines.push(
+      houseDefinitions.push(
         renderDefLine(
           `${getOrdinalSuffix(Number(feat.properties.house))} house`,
           houseDef
@@ -305,12 +218,56 @@ const AstroTooltipContent = ({ feat, label }) => {
       );
     }
   }
+
+  // --- 3. ZODIAC SIGN DEFINITIONS ---
   if (feat.properties.sign != null) {
     const signDef = getDef("zodiacSigns", String(feat.properties.sign));
     if (signDef) {
-      lines.push(renderDefLine(String(feat.properties.sign), signDef));
+      signDefinitions.push(renderDefLine(String(feat.properties.sign), signDef));
     }
   }
+
+  // --- 4. ASPECT/LINE TYPE DEFINITIONS ---
+  // Aspect and multi-word logic
+  if (labelParts.length >= 3) {
+    const aspect = labelParts[labelParts.length - 2];
+    const angle = labelParts[labelParts.length - 1];
+    
+    // Aspect line
+    const aspectLineKey = `${capitalize(aspect)} ${normalizeLabelPart(angle)}`;
+    if (getDef("aspectLines", aspectLineKey) && !alreadyRendered.has(aspectLineKey)) {
+      aspectDefinitions.push(renderDefLine(aspectLineKey, getDef("aspectLines", aspectLineKey)));
+      alreadyRendered.add(aspectLineKey);
+      alreadyRendered.add(aspect);
+      alreadyRendered.add(angle);
+    } else {
+      if (!alreadyRendered.has(aspect) && getFullDef(aspect)) {
+        aspectDefinitions.push(renderDefLine(aspect, getFullDef(aspect)));
+        alreadyRendered.add(aspect);
+      }
+      if (!alreadyRendered.has(angle) && getFullDef(angle)) {
+        aspectDefinitions.push(renderDefLine(angle, getFullDef(angle)));
+        alreadyRendered.add(angle);
+      }
+    }
+  }
+
+  // Handle remaining aspects/angles from label parsing
+  labelParts.forEach((part) => {
+    if (!alreadyRendered.has(part) && getFullDef(part)) {
+      // Check if it's an aspect or angle
+      if (getDef("aspects", part) || getDef("angles", part) || getDef("aspectLines", part)) {
+        aspectDefinitions.push(renderDefLine(part, getFullDef(part)));
+        alreadyRendered.add(part);
+      }
+    }
+  });
+
+  // Add all definitions in order: Planet, House, Zodiac, Aspect/Line
+  lines.push(...planetDefinitions);
+  lines.push(...houseDefinitions);
+  lines.push(...signDefinitions);
+  lines.push(...aspectDefinitions);
 
   return <div style={{ lineHeight: 1.4 }}>{lines.map((line, index) => <div key={index} style={{ marginBottom: 2 }}>{line}</div>)}</div>;
 };
