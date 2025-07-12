@@ -17,8 +17,6 @@ This module handles:
 - Natal chart summary with core elements including angles and aspects
 - Transit chart (current planetary positions) with aspects to natal
 - Synthesis and interpretation framework
-
-Note: Astrocartography information is excluded from this module
 """
 
 from datetime import datetime, timedelta
@@ -118,8 +116,7 @@ class GPTFormatter:
                         "subject": self._extract_birth_profile(natal_data, request_metadata)
                     }
                 },
-                "natal": self._format_natal_summary(natal_data),
-                "interpretation_framework": self._build_interpretation_framework(natal_data, transit_data)
+                "natal": self._format_natal_summary(natal_data)
             }
             
             # Add transit section if data available
@@ -227,7 +224,6 @@ class GPTFormatter:
             "date": request_metadata.get('birth_date', ''),
             "time": request_metadata.get('birth_time', ''),
             "location": natal_data.get("formatted_location", ""),
-            "coordinates": natal_data.get("coordinates", {}),
             "timezone": natal_data.get("timezone", ""),
             "rising_sign": rising_sign,
             "house_system": request_metadata.get('house_system', 'whole_sign')
@@ -321,31 +317,7 @@ class GPTFormatter:
             "interpretation_priority": "holistic_understanding_through_layered_analysis"
         }
     
-    def _build_interpretation_framework(self, natal_data, transit_data):
-        """
-        Build framework to guide GPT interpretation
-        """
-        available_data = self._identify_data_sources(natal_data, transit_data)
-        
-        # Build interpretation sequence based on available data
-        sequence = ["establish_natal_foundation"]
-        focus_areas = ["sun_moon_rising", "chart_ruler", "major_aspects"]
-        
-        if "transit" in available_data:
-            sequence.append("assess_current_timing_and_influences")
-            focus_areas.append("current_planetary_emphasis")
-        
-        if len(available_data) > 1:
-            sequence.append("synthesize_natal_and_current_influences")
-        
-        return {
-            "interpretation_sequence": sequence,
-            "focus_areas": focus_areas,
-            "approach": "layer_natal_with_temporal",
-            "depth_level": "comprehensive_yet_accessible",
-            "guidance_style": "empowering_and_practical"
-        }
-    
+
     # Helper methods for data extraction
     def _extract_planet_essence(self, planets, planet_name):
         """Extract essential planet information with astrological data"""
@@ -1046,8 +1018,8 @@ class GPTFormatter:
         
         # Sort by orb (tightest first) and limit to most important
         return sorted(transit_aspects, key=lambda x: x['orb'])[:10]
-    
-    def format_highlight_summary_for_gpt(self, highlight_summary, natal_data=None, request_metadata=None):
+
+    # Instance method convenience functions for API compatibility
         """
         Format highlight summary (circle region features) for GPT analysis
         
@@ -1057,7 +1029,7 @@ class GPTFormatter:
             request_metadata (dict): Original request data for context
             
         Returns:
-            dict: GPT-optimized format for astrocartography region analysis
+            dict: GPT-optimized format for astrocartography region analysis (empirical data only)
         """
         try:
             logger.info("🤖 Formatting highlight summary for GPT analysis")
@@ -1072,30 +1044,31 @@ class GPTFormatter:
             radius = highlight_summary.get('radius', 0)
             features = highlight_summary.get('features', [])
             
-            # Extract location information
-            location_info = self._extract_location_info(center, radius)
-            
-            # Categorize and analyze features
+            # Categorize and analyze features (empirical data)
             feature_analysis = self._analyze_highlight_features(features)
             
-            # Build GPT response
+            # Build GPT response with empirical data only
             gpt_response = {
                 "metadata": {
                     "formatter_version": self.version,
                     "calculation_timestamp": datetime.utcnow().isoformat(),
                     "analysis_type": "astrocartography_region",
                     "optimization_level": "gpt_digest",
-                    "token_efficiency": "high"
+                    "token_efficiency": "high",
+                    "coordinates_filtered": True,
+                    "data_type": "empirical_only"
                 },
-                "location_analysis": location_info,
                 "astrocartography_features": feature_analysis,
-                "interpretation_framework": self._build_highlight_interpretation_framework(feature_analysis, location_info),
-                "synthesis": self._create_highlight_synthesis(feature_analysis, location_info, natal_data)
+                "data_framework": self._build_highlight_interpretation_framework(feature_analysis),
+                "synthesis": self._create_highlight_synthesis(feature_analysis, radius, natal_data)
             }
             
-            # Add natal context if available
+            # Add natal context if available (empirical data only)
             if natal_data and "error" not in natal_data:
                 gpt_response["natal_context"] = self._extract_natal_context_for_highlight(natal_data, request_metadata)
+            
+            # Apply comprehensive coordinate stripping to the entire response
+            gpt_response = self._strip_coordinates_recursively(gpt_response)
             
             logger.info(f"✅ Highlight summary GPT formatting complete")
             return gpt_response
@@ -1107,316 +1080,314 @@ class GPTFormatter:
                 "metadata": {"formatter_version": self.version, "status": "failed"}
             }
     
-    def _extract_location_info(self, center, radius):
-        """Extract and format location information from highlight circle"""
-        try:
-            lat = center.get('lat', 0) if isinstance(center, dict) else 0
-            lng = center.get('lng', 0) if isinstance(center, dict) else 0
-            
-            # Convert radius from whatever unit to miles (assuming it's already in miles)
-            radius_miles = radius if radius else 150
-            
-            # Determine geographic context
-            hemisphere_lat = "Northern" if lat >= 0 else "Southern"
-            hemisphere_lng = "Eastern" if lng >= 0 else "Western"
-            
-            # Rough continent/region identification
-            region = self._identify_geographic_region(lat, lng)
-            
-            return {
-                "coordinates": {
-                    "latitude": round(lat, 4),
-                    "longitude": round(lng, 4),
-                    "hemisphere": f"{hemisphere_lat} {hemisphere_lng}"
-                },
-                "circle_radius": {
-                    "miles": radius_miles,
-                    "kilometers": round(radius_miles * 1.609, 2)
-                },
-                "geographic_context": region,
-                "analysis_scope": f"Astrocartography influences within {radius_miles} miles of {lat:.2f}°, {lng:.2f}°"
-            }
-        except Exception as e:
-            logger.warning(f"Error extracting location info: {e}")
-            return {
-                "coordinates": {"latitude": 0, "longitude": 0},
-                "circle_radius": {"miles": 150, "kilometers": 241},
-                "geographic_context": "Unknown region",
-                "analysis_scope": "Regional astrocartography analysis"
-            }
-    
-    def _identify_geographic_region(self, lat, lng):
-        """Basic geographic region identification"""
-        try:
-            # Very basic continent identification
-            if -90 <= lat <= 90 and -180 <= lng <= 180:
-                if 30 <= lat <= 75 and -130 <= lng <= -60:
-                    return "North America"
-                elif 35 <= lat <= 70 and -10 <= lng <= 70:
-                    return "Europe"
-                elif -35 <= lat <= 40 and 60 <= lng <= 150:
-                    return "Asia"
-                elif -45 <= lat <= 15 and 110 <= lng <= 180:
-                    return "Australia/Oceania"
-                elif -35 <= lat <= 35 and 10 <= lng <= 60:
-                    return "Africa/Middle East"
-                elif -60 <= lat <= 15 and -85 <= lng <= -35:
-                    return "South America"
-                else:
-                    return f"Coordinates: {lat:.1f}°, {lng:.1f}°"
-            return "Unknown region"
-        except:
-            return "Geographic region undetermined"
+
     
     def _analyze_highlight_features(self, features):
-        """Analyze and categorize features within the highlight circle"""
+        """Analyze and categorize features within the highlight circle - empirical data only, no coordinates"""
         try:
             if not features or not isinstance(features, list):
-                return {
-                    "total_features": 0,
-                    "feature_categories": {},
-                    "planetary_influences": {},
-                    "line_types": {},
-                    "interpretation_summary": "No astrological features found in this region"
-                }
+                return self._empty_feature_analysis()
             
-            # Initialize counters
-            categories = {}
-            planets = {}
-            line_types = {}
-            aspects = {}
-            layers = {}
+            # Initialize counters and filtered feature list
+            counters = {
+                'categories': {},
+                'planets': {},
+                'line_types': {},
+                'aspects': {},
+                'layers': {}
+            }
+            filtered_features = []
             
             for feature in features:
                 if not isinstance(feature, dict):
                     continue
                     
                 props = feature.get('properties', {})
-                
-                # Count categories
-                category = props.get('category', 'unknown')
-                categories[category] = categories.get(category, 0) + 1
-                
-                # Count planets
-                planet = props.get('planet', '')
-                if planet:
-                    planets[planet] = planets.get(planet, 0) + 1
-                
-                # Count line types
-                line_type = props.get('line_type', '')
-                if line_type:
-                    line_types[line_type] = line_types.get(line_type, 0) + 1
-                
-                # Count aspects
-                aspect = props.get('aspect', '')
-                if aspect:
-                    aspects[aspect] = aspects.get(aspect, 0) + 1
-                
-                # Count layers
                 layer = feature.get('layerName', 'natal')
-                layers[layer] = layers.get(layer, 0) + 1
+                
+                # Build feature data efficiently
+                feature_data = self._extract_feature_data(props, layer)
+                filtered_features.append(feature_data)
+                
+                # Update counters
+                self._update_counters(counters, props, layer)
             
-            # Create interpretation summary
-            interpretation_summary = self._create_feature_interpretation_summary(
-                categories, planets, line_types, aspects, layers, len(features)
-            )
+            # Sort by distance (closest first)
+            filtered_features.sort(key=lambda x: x.get('distance_miles', 999999))
             
-            return {
-                "total_features": len(features),
-                "feature_categories": dict(sorted(categories.items(), key=lambda x: x[1], reverse=True)),
-                "planetary_influences": dict(sorted(planets.items(), key=lambda x: x[1], reverse=True)),
-                "line_types": dict(sorted(line_types.items(), key=lambda x: x[1], reverse=True)),
-                "aspects": dict(sorted(aspects.items(), key=lambda x: x[1], reverse=True)),
-                "layers": dict(sorted(layers.items(), key=lambda x: x[1], reverse=True)),
-                "interpretation_summary": interpretation_summary
-            }
+            return self._build_feature_analysis_result(filtered_features, counters)
             
         except Exception as e:
             logger.warning(f"Error analyzing highlight features: {e}")
-            return {
-                "total_features": 0,
-                "feature_categories": {},
-                "planetary_influences": {},
-                "line_types": {},
-                "interpretation_summary": "Feature analysis unavailable"
-            }
+            return self._empty_feature_analysis()
     
-    def _create_feature_interpretation_summary(self, categories, planets, line_types, aspects, layers, total_count):
-        """Create a summary interpretation of the features in the region"""
+    def _empty_feature_analysis(self):
+        """Return empty feature analysis structure"""
+        return {
+            "total_features": 0,
+            "feature_categories": {},
+            "planetary_influences": {},
+            "line_types": {},
+            "aspects": {},
+            "layers": {}
+        }
+    
+    def _extract_feature_data(self, props, layer):
+        """Extract and format feature data from properties"""
+        # Base feature data with required fields
+        feature_data = {
+            'layer': layer,
+            'distance_miles': round_precision(props.get('distance', 0) / 1609.34, 2)
+        }
+        
+        # Field mappings with their processing rules (coordinates filtered out)
+        field_mappings = {
+            'category': ('category', str),
+            'planet': ('planet', str),
+            'line_type': ('line_type', str),
+            'aspect': ('aspect', str),
+            'sign': ('sign', str),
+            'house': ('house', str),
+            'angle': ('angle', str),
+            'label': ('label', str),
+            'spectral_class': ('spectral_class', str),
+            'fixed_star_name': ('star_name', str),
+            'arabic_lot_name': ('lot_name', str),
+            'orb': ('orb', lambda x: round_precision(x, 4) if x else None),
+            'magnitude': ('magnitude', lambda x: round_precision(x, 2) if x else None)
+        }
+        
+        # Process fields efficiently
+        for field_key, (prop_key, processor) in field_mappings.items():
+            value = props.get(prop_key)
+            if value and value != 'unknown' and value != '':
+                if callable(processor):
+                    processed_value = processor(value)
+                    if processed_value is not None and processed_value != 0:
+                        feature_data[field_key] = processed_value
+                else:
+                    feature_data[field_key] = processor(value)
+        
+        return feature_data
+    
+    def _update_counters(self, counters, props, layer):
+        """Update all counter dictionaries efficiently"""
+        counter_mappings = [
+            ('categories', props.get('category', '')),
+            ('planets', props.get('planet', '')),
+            ('line_types', props.get('line_type', '')),
+            ('aspects', props.get('aspect', '')),
+            ('layers', layer)
+        ]
+        
+        for counter_type, value in counter_mappings:
+            if value:  # Only count non-empty values (except layers which are always counted)
+                counters[counter_type][value] = counters[counter_type].get(value, 0) + 1
+            elif counter_type == 'layers':  # Always count layers, even if empty
+                counters[counter_type][value or 'natal'] = counters[counter_type].get(value or 'natal', 0) + 1
+    
+    def _build_feature_analysis_result(self, filtered_features, counters):
+        """Build the final analysis result structure with coordinates completely stripped"""
+        result = {
+            "total_features": len(filtered_features),
+            "closest_features": filtered_features[:15],  # Top 15 closest features for detailed analysis
+            "all_features": filtered_features,  # Complete feature set for comprehensive analysis
+            "feature_categories": dict(sorted(counters['categories'].items(), key=lambda x: x[1], reverse=True)),
+            "planetary_influences": dict(sorted(counters['planets'].items(), key=lambda x: x[1], reverse=True)),
+            "line_types": dict(sorted(counters['line_types'].items(), key=lambda x: x[1], reverse=True)),
+            "aspects": dict(sorted(counters['aspects'].items(), key=lambda x: x[1], reverse=True)),
+            "layers": dict(sorted(counters['layers'].items(), key=lambda x: x[1], reverse=True)),
+            "distance_statistics": self._calculate_distance_statistics(filtered_features),
+            "data_note": "Empirical astrocartography data only - coordinates filtered for efficiency"
+        }
+        
+        # Apply comprehensive coordinate stripping to the entire result
+        return self._strip_coordinates_recursively(result)
+    
+    def _calculate_distance_statistics(self, filtered_features):
+        """Calculate statistical data about feature distances from center"""
         try:
-            summary_parts = []
+            if not filtered_features:
+                return {
+                    "closest_distance_miles": 0,
+                    "furthest_distance_miles": 0,
+                    "average_distance_miles": 0,
+                    "median_distance_miles": 0,
+                    "total_features_analyzed": 0
+                }
             
-            # Overall count
-            summary_parts.append(f"This region contains {total_count} astrological influences")
+            distances = [f.get('distance_miles', 0) for f in filtered_features if f.get('distance_miles', 0) > 0]
             
-            # Top category
-            if categories:
-                top_category = max(categories.items(), key=lambda x: x[1])
-                category_name = top_category[0].replace('_', ' ').title()
-                summary_parts.append(f"Primary influence type: {category_name} ({top_category[1]} features)")
+            if not distances:
+                return {
+                    "closest_distance_miles": 0,
+                    "furthest_distance_miles": 0,
+                    "average_distance_miles": 0,
+                    "median_distance_miles": 0,
+                    "total_features_analyzed": len(filtered_features)
+                }
             
-            # Top planets (up to 3)
-            if planets:
-                top_planets = sorted(planets.items(), key=lambda x: x[1], reverse=True)[:3]
-                planet_names = [p[0] for p in top_planets]
-                summary_parts.append(f"Key planetary influences: {', '.join(planet_names)}")
+            # Calculate statistics
+            closest = min(distances)
+            furthest = max(distances)
+            average = sum(distances) / len(distances)
             
-            # Line types
-            if line_types:
-                top_line_types = sorted(line_types.items(), key=lambda x: x[1], reverse=True)[:2]
-                line_names = [lt[0] for lt in top_line_types]
-                summary_parts.append(f"Primary line types: {', '.join(line_names)}")
+            # Calculate median
+            sorted_distances = sorted(distances)
+            n = len(sorted_distances)
+            if n % 2 == 0:
+                median = (sorted_distances[n//2 - 1] + sorted_distances[n//2]) / 2
+            else:
+                median = sorted_distances[n//2]
             
-            # Layers
-            if layers:
-                layer_info = []
-                for layer, count in layers.items():
-                    layer_display = layer.title() if layer != 'CCG' else 'CCG'
-                    layer_info.append(f"{layer_display} ({count})")
-                summary_parts.append(f"Chart layers present: {', '.join(layer_info)}")
-            
-            return ". ".join(summary_parts) + "."
+            return {
+                "closest_distance_miles": round_precision(closest, 2),
+                "furthest_distance_miles": round_precision(furthest, 2),
+                "average_distance_miles": round_precision(average, 2),
+                "median_distance_miles": round_precision(median, 2),
+                "total_features_analyzed": len(filtered_features)
+            }
             
         except Exception as e:
-            logger.warning(f"Error creating feature interpretation summary: {e}")
-            return "Regional astrological influences identified for analysis."
-    
-    def _build_highlight_interpretation_framework(self, feature_analysis, location_info):
-        """Build interpretation framework for highlight region analysis"""
+            logger.warning(f"Error calculating distance statistics: {e}")
+            return {
+                "closest_distance_miles": 0,
+                "furthest_distance_miles": 0,
+                "average_distance_miles": 0,
+                "median_distance_miles": 0,
+                "total_features_analyzed": 0
+            }
+
+    def _build_highlight_interpretation_framework(self, feature_analysis):
+        """Build data framework for highlight region analysis - empirical data only"""
         try:
             total_features = feature_analysis.get('total_features', 0)
             
             if total_features == 0:
                 return {
-                    "analysis_approach": "neutral_location",
-                    "focus_areas": ["geographic_energy", "potential_for_development"],
-                    "interpretation_style": "exploratory_and_open"
+                    "analysis_type": "neutral_location",
+                    "data_categories": [],
+                    "feature_density": "none"
                 }
             
-            focus_areas = ["regional_astrological_influences"]
-            analysis_approach = "comprehensive_regional_analysis"
+            data_categories = []
             
-            # Determine focus based on feature types
+            # Determine categories based on feature types (empirical data only)
             categories = feature_analysis.get('feature_categories', {})
             
             if 'planet' in categories or 'planetary' in str(categories):
-                focus_areas.append("planetary_line_influences")
+                data_categories.append("planetary_lines")
             
             if 'aspect' in categories:
-                focus_areas.append("aspect_line_crossings")
+                data_categories.append("aspect_lines")
             
             if 'parans' in categories:
-                focus_areas.append("paran_crossings_and_angular_relationships")
+                data_categories.append("paran_crossings")
             
             if 'hermetic_lot' in categories:
-                focus_areas.append("hermetic_lots_and_arabic_parts")
+                data_categories.append("hermetic_lots")
             
             if 'fixed_star' in categories:
-                focus_areas.append("fixed_star_influences")
+                data_categories.append("fixed_stars")
             
-            # Determine interpretation style based on complexity
-            if total_features > 10:
-                interpretation_style = "synthesized_and_prioritized"
-            elif total_features > 5:
-                interpretation_style = "balanced_comprehensive"
+            # Determine feature density (empirical classification)
+            if total_features > 15:
+                feature_density = "high"
+            elif total_features > 8:
+                feature_density = "moderate"
+            elif total_features > 3:
+                feature_density = "low"
             else:
-                interpretation_style = "detailed_focused"
+                feature_density = "minimal"
             
             return {
-                "analysis_approach": analysis_approach,
-                "focus_areas": focus_areas,
-                "interpretation_style": interpretation_style,
-                "regional_context": location_info.get('geographic_context', 'Unknown'),
-                "guidance": "Interpret astrocartography influences for this specific geographic region"
+                "analysis_type": "astrocartography_region",
+                "data_categories": data_categories,
+                "feature_density": feature_density,
+                "total_features": total_features
             }
             
         except Exception as e:
-            logger.warning(f"Error building highlight interpretation framework: {e}")
+            logger.warning(f"Error building highlight framework: {e}")
             return {
-                "analysis_approach": "general_regional_analysis",
-                "focus_areas": ["astrocartography_influences"],
-                "interpretation_style": "comprehensive"
+                "analysis_type": "astrocartography_region",
+                "data_categories": [],
+                "feature_density": "unknown"
             }
+
+
     
-    def _create_highlight_synthesis(self, feature_analysis, location_info, natal_data):
-        """Create synthesis summary for highlight region"""
+    def _create_highlight_synthesis(self, feature_analysis, radius, natal_data):
+        """Create empirical data synthesis for highlight region"""
         try:
-            synthesis_parts = []
-            
-            # Geographic context
-            region = location_info.get('geographic_context', 'this region')
-            radius = location_info.get('circle_radius', {}).get('miles', 150)
-            synthesis_parts.append(f"Analysis focused on astrocartography influences within {radius} miles in {region}")
-            
-            # Feature density
             total_features = feature_analysis.get('total_features', 0)
-            if total_features > 15:
-                density = "high density of astrological influences"
-            elif total_features > 8:
-                density = "moderate concentration of influences"
-            elif total_features > 3:
-                density = "selective astrological influences"
-            elif total_features > 0:
-                density = "minimal but significant influences"
-            else:
-                density = "neutral astrological environment"
+            radius_miles = radius / 1609.34 if radius else 150  # Convert meters to miles
             
-            synthesis_parts.append(f"This region shows {density}")
-            
-            # Primary themes
-            planets = feature_analysis.get('planetary_influences', {})
-            if planets:
-                top_planet = max(planets.items(), key=lambda x: x[1])[0]
-                synthesis_parts.append(f"Primary planetary influence: {top_planet}")
-            
-            # Natal relationship
-            if natal_data and "error" not in natal_data:
-                synthesis_parts.append("Analysis includes relationship to natal chart patterns")
-            
-            return {
-                "regional_summary": ". ".join(synthesis_parts) + ".",
-                "analysis_priority": "location_specific_astrocartography_influences",
-                "interpretation_depth": "comprehensive_regional_analysis"
+            # Empirical data only
+            synthesis_data = {
+                "search_radius_miles": round_precision(radius_miles, 2),
+                "total_features_found": total_features,
+                "feature_density_per_sq_mile": round_precision(total_features / (3.14159 * radius_miles * radius_miles), 6) if radius_miles > 0 else 0,
+                "distance_statistics": feature_analysis.get('distance_statistics', {}),
+                "data_layers_present": list(feature_analysis.get('layers', {}).keys()),
+                "feature_category_counts": feature_analysis.get('feature_categories', {}),
+                "planetary_feature_counts": feature_analysis.get('planetary_influences', {})
             }
+            
+            # Add natal data relationship if available
+            if natal_data and "error" not in natal_data:
+                synthesis_data["natal_chart_available"] = True
+                synthesis_data["birth_location"] = natal_data.get("formatted_location", "Unknown")
+            else:
+                synthesis_data["natal_chart_available"] = False
+            
+            return synthesis_data
             
         except Exception as e:
             logger.warning(f"Error creating highlight synthesis: {e}")
             return {
-                "regional_summary": "Regional astrocartography analysis prepared for interpretation.",
-                "analysis_priority": "general_location_analysis"
+                "search_radius_miles": 150,
+                "total_features_found": 0,
+                "natal_chart_available": False
             }
     
     def _extract_natal_context_for_highlight(self, natal_data, request_metadata):
-        """Extract relevant natal context for highlight region analysis"""
+        """Extract relevant natal context data for highlight region analysis"""
         try:
-            # Get basic natal info
+            # Get basic natal data
             natal_context = {
-                "birth_info": self._extract_birth_profile(natal_data, request_metadata),
-                "core_pattern": "Available for regional correlation"
+                "birth_profile": self._extract_birth_profile(natal_data, request_metadata),
+                "chart_data_available": True
             }
             
-            # Extract key natal elements for regional comparison
+            # Extract key natal elements for regional correlation (empirical data only)
             planets = natal_data.get("planets", {})
             if planets:
                 # Get Sun, Moon, Rising for context
                 sun_info = self._extract_planet_essence(planets, "Sun")
                 moon_info = self._extract_planet_essence(planets, "Moon")
                 
-                natal_context["key_natal_elements"] = {
+                natal_context["primary_placements"] = {
                     "sun_sign": sun_info.get("sign") if sun_info else "Unknown",
-                    "moon_sign": moon_info.get("sign") if moon_info else "Unknown",
+                    "sun_longitude": round_precision(sun_info.get("longitude", 0), 4) if sun_info else 0,
+                    "moon_sign": moon_info.get("sign") if moon_info else "Unknown", 
+                    "moon_longitude": round_precision(moon_info.get("longitude", 0), 4) if moon_info else 0,
                     "rising_sign": self._extract_rising_sign(natal_data.get("houses", {}))
                 }
             
-            natal_context["correlation_guidance"] = "Compare regional influences with natal chart patterns for personalized interpretation"
+            # Add houses data if available
+            houses = natal_data.get("houses", {})
+            if houses:
+                angles = self._extract_angles(houses)
+                natal_context["chart_angles"] = angles
             
             return natal_context
             
         except Exception as e:
             logger.warning(f"Error extracting natal context for highlight: {e}")
             return {
-                "birth_info": "Available",
-                "correlation_guidance": "Natal chart context available for regional analysis"
+                "birth_profile": {"date": "Unknown", "location": "Unknown"},
+                "chart_data_available": False
             }
 
     # Instance method convenience functions for API compatibility
@@ -1495,3 +1466,22 @@ def format_with_transits(natal_data, transit_data, request_data):
     """
     formatter = GPTFormatter()
     return formatter.format_with_transits(natal_data, transit_data, request_data)
+
+def _strip_coordinates_recursively(self, data):
+        """Recursively remove coordinate data from nested dictionaries and lists"""
+        if isinstance(data, dict):
+            # Create a copy without coordinates
+            filtered_data = {}
+            for key, value in data.items():
+                # Skip coordinate-related keys
+                if key in ['coordinates', 'geometry', 'lat', 'lng', 'latitude', 'longitude']:
+                    continue
+                # Recursively process nested data
+                filtered_data[key] = self._strip_coordinates_recursively(value)
+            return filtered_data
+        elif isinstance(data, list):
+            # Recursively process list items
+            return [self._strip_coordinates_recursively(item) for item in data]
+        else:
+            # Return primitive values as-is
+            return data

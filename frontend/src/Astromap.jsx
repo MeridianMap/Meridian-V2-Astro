@@ -170,32 +170,56 @@ const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
 function getFeaturesWithinCircle(center, radius, features) {
   const centerLatLng = L.latLng(center[0], center[1]);
   const results = [];
-  features.forEach((feat) => {
+  
+  console.log(`🎯 Checking ${features.length} features within radius ${radius}m of center [${center[0].toFixed(4)}, ${center[1].toFixed(4)}]`);
+  
+  features.forEach((feat, index) => {
     let minDist = Infinity;
+    let intersects = false;
+    
     if (feat.geometry.type === "Point") {
       const [lon, lat] = feat.geometry.coordinates;
       const pt = L.latLng(lat, lon);
       minDist = centerLatLng.distanceTo(pt);
+      intersects = minDist <= radius;
     } else if (feat.geometry.type === "LineString") {
+      // Check all points on the line
       feat.geometry.coordinates.forEach(([lon, lat]) => {
         const pt = L.latLng(lat, lon);
         const dist = centerLatLng.distanceTo(pt);
         if (dist < minDist) minDist = dist;
+        if (dist <= radius) intersects = true;
       });
     } else if (feat.geometry.type === "MultiLineString") {
+      // Check all points on all lines
       feat.geometry.coordinates.forEach(line =>
         line.forEach(([lon, lat]) => {
           const pt = L.latLng(lat, lon);
           const dist = centerLatLng.distanceTo(pt);
           if (dist < minDist) minDist = dist;
+          if (dist <= radius) intersects = true;
         })
       );
     }
-    if (minDist <= radius) {
-      results.push({ feature: feat, distance: minDist });
+    
+    if (intersects) {
+      // Create a copy of the feature without geometry coordinates
+      const featureWithoutCoords = {
+        ...feat,
+        geometry: {
+          type: feat.geometry.type
+          // Exclude coordinates array to reduce payload size
+        }
+      };
+      results.push({ feature: featureWithoutCoords, distance: minDist });
+      
+      // Debug log for included features
+      console.log(`✅ Feature ${index} included: ${feat.properties?.planet || feat.properties?.type || 'Unknown'} (distance: ${minDist.toFixed(0)}m)`);
     }
   });
+  
   results.sort((a, b) => a.distance - b.distance);
+  console.log(`🎯 Found ${results.length} features within circle`);
   return results;
 }
 
