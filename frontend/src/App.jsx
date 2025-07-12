@@ -98,7 +98,7 @@ function App() {
     }
   });
 
-  // Helper function to update individual layer progress
+  // Helper function xto update individual layer progress
   const updateLayerProgress = (layerName, status, progress, message) => {
     setOverallProgress(prev => ({
       ...prev,
@@ -223,7 +223,7 @@ function App() {
     planet: true,
     mc_aspects: true,
     ac_aspects: true,
-    fixed_star: true,
+    fixed_star: false,
     hermetic_lot: true,
     parans: true,
     ic_mc: true,

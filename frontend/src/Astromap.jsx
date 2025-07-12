@@ -45,6 +45,31 @@ const getLineStyle = (feature) => {
   }
 };
 
+// Component to handle zooming to the highlight circle after features are rendered
+const ZoomToCircle = ({ highlightCircle, featuresRendered }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (highlightCircle && featuresRendered) {
+      // Add a small delay to ensure all features are fully rendered
+      const timer = setTimeout(() => {
+        // Calculate zoom so the circle fits with margin
+        const circleLatLng = L.latLng(highlightCircle.center[0], highlightCircle.center[1]);
+        // Add 20% margin to radius for padding
+        const fitRadius = highlightCircle.radius * 1.2;
+        // Calculate bounding box
+        const bounds = circleLatLng.toBounds(fitRadius * 2);
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 6 });
+        console.log('🎯 Zoomed to highlight circle after features rendered');
+      }, 500); // 500ms delay to ensure smooth rendering
+
+      return () => clearTimeout(timer);
+    }
+  }, [map, highlightCircle, featuresRendered]);
+
+  return null;
+};
+
 // Custom component for handling map clicks and creating highlight circle
 const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
   const map = useMapEvents({
@@ -56,13 +81,7 @@ const ClickableMap = ({ highlightCircle, setHighlightCircle }) => {
         radius: 241402 // 150 miles in meters (150 * 1.60934 * 1000)
       };
       setHighlightCircle(newCircle);
-      // Calculate zoom so the circle fits with margin
-      const circleLatLng = L.latLng(lat, lng);
-      // Add 20% margin to radius for padding
-      const fitRadius = newCircle.radius * 1.2;
-      // Calculate bounding box
-      const bounds = circleLatLng.toBounds(fitRadius * 2);
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 6 });
+      // Note: Zoom happens in ZoomToCircle component after features are rendered
     }
   });
   // Create gradient circle using SVG overlay
@@ -184,6 +203,9 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
   // Add state for single highlight circle
   const [highlightCircle, setHighlightCircle] = useState(null);
   const [highlightSummary, setHighlightSummary] = useState(null);
+  const [isMapLoading, setIsMapLoading] = useState(true);
+  const [featuresRendered, setFeaturesRendered] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('Initializing...');
 
   // Debug logging
   console.log('🗺️ AstroMap render - data features:', data?.features?.length || 0);
@@ -230,28 +252,85 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
     }
   }, [highlightCircle, mergedFeatures, onHighlightSummary]);
 
-  // Set default highlight circle at birth location on load
+  // Track when features are rendered to trigger zoom
   useEffect(() => {
-    // Only set default if no circle exists and birth coordinates are available
-    if (!highlightCircle && birthCoordinates && Array.isArray(birthCoordinates) && birthCoordinates.length >= 2) {
-      const [lat, lon] = birthCoordinates;
-      if (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) {
-        const defaultCircle = {
-          id: `birth-${Date.now()}`,
-          center: [lat, lon],
-          radius: 241402 // 150 miles in meters (150 * 1.60934 * 1000)
-        };
-        setHighlightCircle(defaultCircle);
-        console.log('🎯 AstroMap - Set default highlight circle at birth location:', { lat, lon });
-      }
+    if (mergedFeatures.length > 0) {
+      setLoadingStage(`Rendering ${mergedFeatures.length} features...`);
+      // Add a small delay to ensure DOM elements are rendered
+      const timer = setTimeout(() => {
+        setLoadingStage('Finalizing map...');
+        setFeaturesRendered(true);
+        setTimeout(() => {
+          setIsMapLoading(false);
+          console.log('🗺️ Features rendered, map ready for interaction');
+        }, 200);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setLoadingStage('Loading data...');
+      setFeaturesRendered(false);
     }
-  }, [birthCoordinates, highlightCircle]); // Only depend on birthCoordinates and highlightCircle
+  }, [mergedFeatures]);
+
+  // Set default highlight circle at a random location on load
+  useEffect(() => {
+    // Only set default if no circle exists
+    if (!highlightCircle) {
+      setLoadingStage('Generating random location...');
+      // Generate random latitude and longitude
+      const randomLat = (Math.random() * 180 - 90).toFixed(4); // Latitude between -90 and 90
+      const randomLon = (Math.random() * 360 - 180).toFixed(4); // Longitude between -180 and 180
+
+      const defaultCircle = {
+        id: `random-${Date.now()}`,
+        center: [parseFloat(randomLat), parseFloat(randomLon)],
+        radius: 241402 // 150 miles in meters (150 * 1.60934 * 1000)
+      };
+      
+      setHighlightCircle(defaultCircle);
+      setLoadingStage('Creating highlight circle...');
+      console.log('🎯 AstroMap - Set default highlight circle at random location:', { randomLat, randomLon });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run once on mount
   
   // Show map even if no features - just empty map
   if (!data) return <div>Loading astrocartography data…</div>;
 
   return (
-    <div className="astromap-wrapper">
+    <div className="astromap-wrapper" style={{ position: 'relative' }}>
+      {/* Loading overlay */}
+      {isMapLoading && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          color: '#fff'
+        }}>
+          <div className="loading-spinner"></div>
+          <div style={{ 
+            fontSize: '18px', 
+            fontWeight: '600',
+            marginBottom: '8px'
+          }}>
+            Loading Astrocartography Map
+          </div>
+          <div style={{ 
+            fontSize: '14px', 
+            opacity: 0.8 
+          }}>
+            {loadingStage}
+          </div>
+        </div>
+      )}
       {/* Accordion button for JSON output - removed, now handled in App.jsx */}
       {/*
       <div style={{ margin: '12px 0' }}>
@@ -377,7 +456,7 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
         </div>
       )}
       <MapContainer
-        className="leaflet-container"
+        className={`leaflet-container ${!isMapLoading ? 'map-fade-in' : ''}`}
         center={[0, 0]}
         zoom={3}
         minZoom={3}
@@ -398,6 +477,7 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
           highlightCircle={highlightCircle} 
           setHighlightCircle={setHighlightCircle} 
         />
+        <ZoomToCircle highlightCircle={highlightCircle} featuresRendered={featuresRendered} /> {/* Zoom to circle component */}
         
         {/* Add coordinate grid and distance scale */}
         <CoordinateGrid />
