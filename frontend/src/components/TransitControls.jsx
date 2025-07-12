@@ -3,8 +3,6 @@ import React from 'react';
 function TransitControls({
   layerManager,
   forceMapUpdate,
-  handleGenerateTransits,
-  loadingStep,
   currentTransitDateTime,
   setCurrentTransitDateTime,
   // New props for unified control
@@ -19,7 +17,7 @@ function TransitControls({
   return (
     <div className="filter-control-panel">
       <h3 style={{ color: '#fff', textAlign: 'center', margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>
-        Transit Overlay Controls
+        Transit Overlay - planets now, experimental
       </h3>
       
       {/* Main Transit Layer Toggle */}

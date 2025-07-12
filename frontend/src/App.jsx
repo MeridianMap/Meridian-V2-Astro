@@ -229,6 +229,7 @@ function App() {
     ic_mc: true,
     ac_dc: true
   });
+
   const allBodies = [
     "Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "Lunar Node",
     "Chiron", "Ceres", "Pallas", "Juno", "Vesta", "Black Moon Lilith", "Pholus"
@@ -243,6 +244,7 @@ function App() {
   const [ccgBodyToggles, setCCGBodyToggles] = useState(
     Object.fromEntries(ccgBodies.map(name => [name, true]))
   );
+  const [showBodyAccordion, setShowBodyAccordion] = useState(true);
   const [ccgShowBodyAccordion, setCCGShowBodyAccordion] = useState(true);
   const [transitShowBodyAccordion, setTransitShowBodyAccordion] = useState(true);
 
@@ -381,7 +383,7 @@ function App() {
       // Ensure only natal lines are visible by default
       layerManager.setLayerVisible('natal', true);
       layerManager.setLayerVisible('transit', false);
-      layerManager.setLayerVisible('CCG', false);
+      layerManager.setLayerVisible('CCG', true);
       
       forceMapUpdate();
       
@@ -900,7 +902,7 @@ function App() {
                      loadingStep === 'ccg_ephemeris' || ccgLoading === 'ephemeris' ? '25%' :
                      loadingStep === 'ccg_astro' || ccgLoading === 'astro' ? '75%' :
                      // Completion states
-                     loadingStep === 'done' || loadingStep === 'ccg_complete' || loadingStep === 'hd_complete' ? '100%' : 
+                     loadingStep === 'done' || loadingStep === 'ccg_complete' ? '100%' : 
                      '10%',
               height: '100%',
               backgroundColor: overallProgress.percentage === 100 ? '#28a745' : '#007bff',
@@ -940,12 +942,11 @@ function App() {
                 {/* Completion states */}
                 {loadingStep === 'done' && 'Natal chart complete!'}
                 {loadingStep === 'ccg_complete' && 'CCG overlay generated!'}
-                {loadingStep === 'hd_complete' && 'Human Design overlay generated!'}
                 
                 {/* Generic loading fallback */}
                 {!['natal_ephemeris', 'natal_astro', 'parallel_layers', 'finalizing', 'complete',
                     'ephemeris', 'astro', 'transit_ephemeris', 'transit_astro', 'ccg_ephemeris', 'ccg_astro', 
-                    'chart_calculation', 'hd_calculation', 'done', 'ccg_complete', 'hd_complete'].includes(loadingStep) && 
+                    'chart_calculation', 'done', 'ccg_complete'].includes(loadingStep) && 
                  'Processing...'}
               </>
             )}
@@ -973,7 +974,7 @@ function App() {
                   )
                 }}>
                   <div style={{ fontWeight: 'bold', textTransform: 'capitalize', marginBottom: '0.25rem' }}>
-                    {layerName === 'humanDesign' ? 'Human Design' : layerName}
+                    {layerName}
                     {status.status === 'completed' && ' ✅'}
                     {status.status === 'failed' && ' ❌'}
                     {status.status === 'processing' && ' ⏳'}
@@ -1032,14 +1033,6 @@ function App() {
               </button>
               {/*
               <button 
-                className={`layer-tab ${currentChartLayer === 'HUMAN_DESIGN' ? 'active' : ''}`}
-                onClick={() => setCurrentChartLayer('HUMAN_DESIGN')}
-              >
-                Human Design
-              </button>
-              */}
-              {/*
-              <button 
                 className={`layer-tab ${currentChartLayer === 'TRANSIT' ? 'active' : ''}`}
                 onClick={() => setCurrentChartLayer('TRANSIT')}
               >
@@ -1081,6 +1074,8 @@ function App() {
               allBodies={allBodies}
               bodyToggles={bodyToggles}
               setBodyToggles={setBodyToggles}
+              showBodyAccordion={showBodyAccordion}
+              setShowBodyAccordion={setShowBodyAccordion}
             />
             {/* CCG Controls Section */}
             <CCGControls
