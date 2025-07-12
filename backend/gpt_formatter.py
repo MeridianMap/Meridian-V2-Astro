@@ -50,7 +50,10 @@ class GPTFormatter:
         # Import v2 formatter dependencies only when GPTFormatter is instantiated
         global swe, calculate_aspects
         import swisseph as swe
-        from aspects import calculate_aspects
+        try:
+            from aspects import calculate_aspects
+        except ImportError:
+            from backend.aspects import calculate_aspects
         
         self.version = "2.3.2"
         self.max_aspects = 12  # Increased for more comprehensive aspect analysis
@@ -457,6 +460,63 @@ class GPTFormatter:
         
         # Sort by orb and return top aspects
         return sorted(major_aspects, key=lambda x: x['orb'])[:self.max_aspects]
+    
+    def _extract_optional_points(self, natal_data):
+        """Extract optional astrological points like asteroids, lunar nodes, etc."""
+        optional_points = {}
+        
+        try:
+            planets = natal_data.get('planets', {})
+            
+            # Extract Lunar Nodes (if present)
+            if 'North Node' in planets:
+                optional_points['north_node'] = {
+                    'longitude': planets['North Node'].get('longitude'),
+                    'sign': planets['North Node'].get('sign'),
+                    'interpretation': 'soul_purpose_and_destiny'
+                }
+            
+            if 'South Node' in planets:
+                optional_points['south_node'] = {
+                    'longitude': planets['South Node'].get('longitude'),
+                    'sign': planets['South Node'].get('sign'),
+                    'interpretation': 'past_life_talents_and_karma'
+                }
+            
+            # Extract major asteroids (if present)
+            asteroids = ['Chiron', 'Ceres', 'Pallas', 'Juno', 'Vesta', 'Black Moon Lilith']
+            for asteroid in asteroids:
+                if asteroid in planets:
+                    optional_points[asteroid.lower().replace(' ', '_')] = {
+                        'longitude': planets[asteroid].get('longitude'),
+                        'sign': planets[asteroid].get('sign'),
+                        'interpretation': self._get_asteroid_interpretation(asteroid)
+                    }
+            
+            # Add count and priority guidance
+            optional_points['count'] = len([k for k in optional_points.keys() if k not in ['count', 'priority_guidance']])
+            optional_points['priority_guidance'] = 'Focus on North Node for life direction, Chiron for healing themes'
+            
+        except Exception as e:
+            logger.warning(f"Error extracting optional points: {e}")
+            optional_points = {
+                'count': 0,
+                'priority_guidance': 'Optional points analysis unavailable'
+            }
+        
+        return optional_points
+    
+    def _get_asteroid_interpretation(self, asteroid_name):
+        """Get interpretive guidance for asteroid placements"""
+        interpretations = {
+            'Chiron': 'healing_wisdom_and_wounds',
+            'Ceres': 'nurturing_and_sustenance',
+            'Pallas': 'wisdom_and_strategy',
+            'Juno': 'partnership_and_commitment',
+            'Vesta': 'devotion_and_sacred_service',
+            'Black Moon Lilith': 'shadow_self_and_hidden_power'
+        }
+        return interpretations.get(asteroid_name, 'additional_influence')
     
     def _get_aspect_nature(self, aspect_type):
         """Get interpretive nature of aspect"""
@@ -987,99 +1047,451 @@ class GPTFormatter:
         # Sort by orb (tightest first) and limit to most important
         return sorted(transit_aspects, key=lambda x: x['orb'])[:10]
     
-
-# Convenience functions for easy import and use
-def format_for_gpt(natal_data, transit_data=None, request_metadata=None):
-    """
-    Convenience function to format calculation results for GPT using v4_astro format
-    
-    Args:
-        natal_data (dict): Natal chart calculation results
-        transit_data (dict): Transit calculation results (optional)
-        request_metadata (dict): Original request data for context
+    def format_highlight_summary_for_gpt(self, highlight_summary, natal_data=None, request_metadata=None):
+        """
+        Format highlight summary (circle region features) for GPT analysis
         
-    Returns:
-        dict: GPT v4_astro format with tightened aspect filtering (5 major only), house cusps & birth metadata
-    """
-    # Import v3.1 formatter with proper path handling
-    import sys
-    import os
-    import importlib.util
+        Args:
+            highlight_summary (dict): Contains center point, radius, and features within circle
+            natal_data (dict): Optional natal chart data for context
+            request_metadata (dict): Original request data for context
+            
+        Returns:
+            dict: GPT-optimized format for astrocartography region analysis
+        """
+        try:
+            logger.info("🤖 Formatting highlight summary for GPT analysis")
+            
+            if not highlight_summary or not isinstance(highlight_summary, dict):
+                return {
+                    "error": "Invalid highlight summary data",
+                    "metadata": {"formatter_version": self.version, "status": "failed"}
+                }
+            
+            center = highlight_summary.get('center', {})
+            radius = highlight_summary.get('radius', 0)
+            features = highlight_summary.get('features', [])
+            
+            # Extract location information
+            location_info = self._extract_location_info(center, radius)
+            
+            # Categorize and analyze features
+            feature_analysis = self._analyze_highlight_features(features)
+            
+            # Build GPT response
+            gpt_response = {
+                "metadata": {
+                    "formatter_version": self.version,
+                    "calculation_timestamp": datetime.utcnow().isoformat(),
+                    "analysis_type": "astrocartography_region",
+                    "optimization_level": "gpt_digest",
+                    "token_efficiency": "high"
+                },
+                "location_analysis": location_info,
+                "astrocartography_features": feature_analysis,
+                "interpretation_framework": self._build_highlight_interpretation_framework(feature_analysis, location_info),
+                "synthesis": self._create_highlight_synthesis(feature_analysis, location_info, natal_data)
+            }
+            
+            # Add natal context if available
+            if natal_data and "error" not in natal_data:
+                gpt_response["natal_context"] = self._extract_natal_context_for_highlight(natal_data, request_metadata)
+            
+            logger.info(f"✅ Highlight summary GPT formatting complete")
+            return gpt_response
+            
+        except Exception as e:
+            logger.error(f"❌ Highlight summary GPT formatting failed: {str(e)}")
+            return {
+                "error": f"Highlight summary formatting failed: {str(e)}",
+                "metadata": {"formatter_version": self.version, "status": "failed"}
+            }
     
-    # Get the absolute paths
-    current_dir = os.path.dirname(__file__)
-    src_path = os.path.abspath(os.path.join(current_dir, '..', 'src'))
-    backend_path = os.path.abspath(current_dir)
-    formatter_path = os.path.join(src_path, 'gpt_formatter_v3_1.py')
+    def _extract_location_info(self, center, radius):
+        """Extract and format location information from highlight circle"""
+        try:
+            lat = center.get('lat', 0) if isinstance(center, dict) else 0
+            lng = center.get('lng', 0) if isinstance(center, dict) else 0
+            
+            # Convert radius from whatever unit to miles (assuming it's already in miles)
+            radius_miles = radius if radius else 150
+            
+            # Determine geographic context
+            hemisphere_lat = "Northern" if lat >= 0 else "Southern"
+            hemisphere_lng = "Eastern" if lng >= 0 else "Western"
+            
+            # Rough continent/region identification
+            region = self._identify_geographic_region(lat, lng)
+            
+            return {
+                "coordinates": {
+                    "latitude": round(lat, 4),
+                    "longitude": round(lng, 4),
+                    "hemisphere": f"{hemisphere_lat} {hemisphere_lng}"
+                },
+                "circle_radius": {
+                    "miles": radius_miles,
+                    "kilometers": round(radius_miles * 1.609, 2)
+                },
+                "geographic_context": region,
+                "analysis_scope": f"Astrocartography influences within {radius_miles} miles of {lat:.2f}°, {lng:.2f}°"
+            }
+        except Exception as e:
+            logger.warning(f"Error extracting location info: {e}")
+            return {
+                "coordinates": {"latitude": 0, "longitude": 0},
+                "circle_radius": {"miles": 150, "kilometers": 241},
+                "geographic_context": "Unknown region",
+                "analysis_scope": "Regional astrocartography analysis"
+            }
     
-    # Store original sys.path
-    original_path = sys.path.copy()
+    def _identify_geographic_region(self, lat, lng):
+        """Basic geographic region identification"""
+        try:
+            # Very basic continent identification
+            if -90 <= lat <= 90 and -180 <= lng <= 180:
+                if 30 <= lat <= 75 and -130 <= lng <= -60:
+                    return "North America"
+                elif 35 <= lat <= 70 and -10 <= lng <= 70:
+                    return "Europe"
+                elif -35 <= lat <= 40 and 60 <= lng <= 150:
+                    return "Asia"
+                elif -45 <= lat <= 15 and 110 <= lng <= 180:
+                    return "Australia/Oceania"
+                elif -35 <= lat <= 35 and 10 <= lng <= 60:
+                    return "Africa/Middle East"
+                elif -60 <= lat <= 15 and -85 <= lng <= -35:
+                    return "South America"
+                else:
+                    return f"Coordinates: {lat:.1f}°, {lng:.1f}°"
+            return "Unknown region"
+        except:
+            return "Geographic region undetermined"
     
-    # Ensure src is first (for v3.1 constants), backend is available (for dependencies)
-    paths_to_add = [src_path, backend_path]
-    for path in paths_to_add:
-        if path not in sys.path:
-            if path == src_path:
-                sys.path.insert(0, path)  # src must be first
+    def _analyze_highlight_features(self, features):
+        """Analyze and categorize features within the highlight circle"""
+        try:
+            if not features or not isinstance(features, list):
+                return {
+                    "total_features": 0,
+                    "feature_categories": {},
+                    "planetary_influences": {},
+                    "line_types": {},
+                    "interpretation_summary": "No astrological features found in this region"
+                }
+            
+            # Initialize counters
+            categories = {}
+            planets = {}
+            line_types = {}
+            aspects = {}
+            layers = {}
+            
+            for feature in features:
+                if not isinstance(feature, dict):
+                    continue
+                    
+                props = feature.get('properties', {})
+                
+                # Count categories
+                category = props.get('category', 'unknown')
+                categories[category] = categories.get(category, 0) + 1
+                
+                # Count planets
+                planet = props.get('planet', '')
+                if planet:
+                    planets[planet] = planets.get(planet, 0) + 1
+                
+                # Count line types
+                line_type = props.get('line_type', '')
+                if line_type:
+                    line_types[line_type] = line_types.get(line_type, 0) + 1
+                
+                # Count aspects
+                aspect = props.get('aspect', '')
+                if aspect:
+                    aspects[aspect] = aspects.get(aspect, 0) + 1
+                
+                # Count layers
+                layer = feature.get('layerName', 'natal')
+                layers[layer] = layers.get(layer, 0) + 1
+            
+            # Create interpretation summary
+            interpretation_summary = self._create_feature_interpretation_summary(
+                categories, planets, line_types, aspects, layers, len(features)
+            )
+            
+            return {
+                "total_features": len(features),
+                "feature_categories": dict(sorted(categories.items(), key=lambda x: x[1], reverse=True)),
+                "planetary_influences": dict(sorted(planets.items(), key=lambda x: x[1], reverse=True)),
+                "line_types": dict(sorted(line_types.items(), key=lambda x: x[1], reverse=True)),
+                "aspects": dict(sorted(aspects.items(), key=lambda x: x[1], reverse=True)),
+                "layers": dict(sorted(layers.items(), key=lambda x: x[1], reverse=True)),
+                "interpretation_summary": interpretation_summary
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error analyzing highlight features: {e}")
+            return {
+                "total_features": 0,
+                "feature_categories": {},
+                "planetary_influences": {},
+                "line_types": {},
+                "interpretation_summary": "Feature analysis unavailable"
+            }
+    
+    def _create_feature_interpretation_summary(self, categories, planets, line_types, aspects, layers, total_count):
+        """Create a summary interpretation of the features in the region"""
+        try:
+            summary_parts = []
+            
+            # Overall count
+            summary_parts.append(f"This region contains {total_count} astrological influences")
+            
+            # Top category
+            if categories:
+                top_category = max(categories.items(), key=lambda x: x[1])
+                category_name = top_category[0].replace('_', ' ').title()
+                summary_parts.append(f"Primary influence type: {category_name} ({top_category[1]} features)")
+            
+            # Top planets (up to 3)
+            if planets:
+                top_planets = sorted(planets.items(), key=lambda x: x[1], reverse=True)[:3]
+                planet_names = [p[0] for p in top_planets]
+                summary_parts.append(f"Key planetary influences: {', '.join(planet_names)}")
+            
+            # Line types
+            if line_types:
+                top_line_types = sorted(line_types.items(), key=lambda x: x[1], reverse=True)[:2]
+                line_names = [lt[0] for lt in top_line_types]
+                summary_parts.append(f"Primary line types: {', '.join(line_names)}")
+            
+            # Layers
+            if layers:
+                layer_info = []
+                for layer, count in layers.items():
+                    layer_display = layer.title() if layer != 'CCG' else 'CCG'
+                    layer_info.append(f"{layer_display} ({count})")
+                summary_parts.append(f"Chart layers present: {', '.join(layer_info)}")
+            
+            return ". ".join(summary_parts) + "."
+            
+        except Exception as e:
+            logger.warning(f"Error creating feature interpretation summary: {e}")
+            return "Regional astrological influences identified for analysis."
+    
+    def _build_highlight_interpretation_framework(self, feature_analysis, location_info):
+        """Build interpretation framework for highlight region analysis"""
+        try:
+            total_features = feature_analysis.get('total_features', 0)
+            
+            if total_features == 0:
+                return {
+                    "analysis_approach": "neutral_location",
+                    "focus_areas": ["geographic_energy", "potential_for_development"],
+                    "interpretation_style": "exploratory_and_open"
+                }
+            
+            focus_areas = ["regional_astrological_influences"]
+            analysis_approach = "comprehensive_regional_analysis"
+            
+            # Determine focus based on feature types
+            categories = feature_analysis.get('feature_categories', {})
+            
+            if 'planet' in categories or 'planetary' in str(categories):
+                focus_areas.append("planetary_line_influences")
+            
+            if 'aspect' in categories:
+                focus_areas.append("aspect_line_crossings")
+            
+            if 'parans' in categories:
+                focus_areas.append("paran_crossings_and_angular_relationships")
+            
+            if 'hermetic_lot' in categories:
+                focus_areas.append("hermetic_lots_and_arabic_parts")
+            
+            if 'fixed_star' in categories:
+                focus_areas.append("fixed_star_influences")
+            
+            # Determine interpretation style based on complexity
+            if total_features > 10:
+                interpretation_style = "synthesized_and_prioritized"
+            elif total_features > 5:
+                interpretation_style = "balanced_comprehensive"
             else:
-                sys.path.append(path)      # backend can be later
+                interpretation_style = "detailed_focused"
+            
+            return {
+                "analysis_approach": analysis_approach,
+                "focus_areas": focus_areas,
+                "interpretation_style": interpretation_style,
+                "regional_context": location_info.get('geographic_context', 'Unknown'),
+                "guidance": "Interpret astrocartography influences for this specific geographic region"
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error building highlight interpretation framework: {e}")
+            return {
+                "analysis_approach": "general_regional_analysis",
+                "focus_areas": ["astrocartography_influences"],
+                "interpretation_style": "comprehensive"
+            }
     
-    try:
-        # Load the v3.3 module dynamically to isolate imports
-        spec = importlib.util.spec_from_file_location("gpt_formatter_v3_1", formatter_path)
-        gpt_formatter_v3_3 = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(gpt_formatter_v3_3)
-        
-        # Use v4_astro formatter for latest features (tightened aspects, house cusps, birth metadata)
-        result = gpt_formatter_v3_3.generate(natal_data=natal_data, transit_data=transit_data, 
-                                           request_metadata=request_metadata)
-        return result
-    finally:
-        # Restore original sys.path to avoid conflicts
-        sys.path[:] = original_path
+    def _create_highlight_synthesis(self, feature_analysis, location_info, natal_data):
+        """Create synthesis summary for highlight region"""
+        try:
+            synthesis_parts = []
+            
+            # Geographic context
+            region = location_info.get('geographic_context', 'this region')
+            radius = location_info.get('circle_radius', {}).get('miles', 150)
+            synthesis_parts.append(f"Analysis focused on astrocartography influences within {radius} miles in {region}")
+            
+            # Feature density
+            total_features = feature_analysis.get('total_features', 0)
+            if total_features > 15:
+                density = "high density of astrological influences"
+            elif total_features > 8:
+                density = "moderate concentration of influences"
+            elif total_features > 3:
+                density = "selective astrological influences"
+            elif total_features > 0:
+                density = "minimal but significant influences"
+            else:
+                density = "neutral astrological environment"
+            
+            synthesis_parts.append(f"This region shows {density}")
+            
+            # Primary themes
+            planets = feature_analysis.get('planetary_influences', {})
+            if planets:
+                top_planet = max(planets.items(), key=lambda x: x[1])[0]
+                synthesis_parts.append(f"Primary planetary influence: {top_planet}")
+            
+            # Natal relationship
+            if natal_data and "error" not in natal_data:
+                synthesis_parts.append("Analysis includes relationship to natal chart patterns")
+            
+            return {
+                "regional_summary": ". ".join(synthesis_parts) + ".",
+                "analysis_priority": "location_specific_astrocartography_influences",
+                "interpretation_depth": "comprehensive_regional_analysis"
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error creating highlight synthesis: {e}")
+            return {
+                "regional_summary": "Regional astrocartography analysis prepared for interpretation.",
+                "analysis_priority": "general_location_analysis"
+            }
+    
+    def _extract_natal_context_for_highlight(self, natal_data, request_metadata):
+        """Extract relevant natal context for highlight region analysis"""
+        try:
+            # Get basic natal info
+            natal_context = {
+                "birth_info": self._extract_birth_profile(natal_data, request_metadata),
+                "core_pattern": "Available for regional correlation"
+            }
+            
+            # Extract key natal elements for regional comparison
+            planets = natal_data.get("planets", {})
+            if planets:
+                # Get Sun, Moon, Rising for context
+                sun_info = self._extract_planet_essence(planets, "Sun")
+                moon_info = self._extract_planet_essence(planets, "Moon")
+                
+                natal_context["key_natal_elements"] = {
+                    "sun_sign": sun_info.get("sign") if sun_info else "Unknown",
+                    "moon_sign": moon_info.get("sign") if moon_info else "Unknown",
+                    "rising_sign": self._extract_rising_sign(natal_data.get("houses", {}))
+                }
+            
+            natal_context["correlation_guidance"] = "Compare regional influences with natal chart patterns for personalized interpretation"
+            
+            return natal_context
+            
+        except Exception as e:
+            logger.warning(f"Error extracting natal context for highlight: {e}")
+            return {
+                "birth_info": "Available",
+                "correlation_guidance": "Natal chart context available for regional analysis"
+            }
+
+    # Instance method convenience functions for API compatibility
+    def format_for_gpt(self, natal_data, transit_data, request_data):
+        """Instance method wrapper for format_comprehensive_calculation with both natal and transit data"""
+        return self.format_comprehensive_calculation(natal_data, transit_data, request_data)
+    
+    def format_natal_only(self, natal_data, request_data):
+        """Instance method wrapper for format_comprehensive_calculation with natal data only"""
+        return self.format_comprehensive_calculation(natal_data, None, request_data)
+    
+    def format_with_transits(self, natal_data, transit_data, request_data):
+        """Instance method wrapper for format_comprehensive_calculation with natal and transit data"""
+        return self.format_comprehensive_calculation(natal_data, transit_data, request_data)
 
 
-def format_natal_only(natal_data, request_metadata=None):
+# Standalone convenience function for external use
+def format_highlight_summary_for_gpt(highlight_summary, natal_data=None, request_metadata=None):
     """
-    Format only natal chart data for GPT
+    Convenience function to format highlight summary for GPT analysis
     
     Args:
-        natal_data (dict): Natal chart calculation results
+        highlight_summary (dict): Contains center point, radius, and features within circle
+        natal_data (dict): Optional natal chart data for context  
         request_metadata (dict): Original request data for context
         
     Returns:
-        dict: GPT-optimized natal format
-    """
-    return format_for_gpt(natal_data, None, request_metadata)
-
-
-def format_with_transits(natal_data, transit_data, request_metadata=None):
-    """
-    Format natal chart with current transits for GPT
-    
-    Args:
-        natal_data (dict): Natal chart calculation results
-        transit_data (dict): Transit calculation results
-        request_metadata (dict): Original request data for context
-        
-    Returns:
-        dict: GPT-optimized format with transits
-    """
-    return format_for_gpt(natal_data, transit_data, request_metadata)
-
-
-def format_for_gpt_v2(natal_data, transit_data=None, request_metadata=None):
-    """
-    Legacy v2.3.2 formatter - produces verbose output (for backward compatibility)
-    Use format_for_gpt() for new v4_astro format with enhanced astrological analysis
-    
-    Args:
-        natal_data (dict): Natal chart calculation results
-        transit_data (dict): Transit calculation results (optional)
-        request_metadata (dict): Original request data for context
-        
-    Returns:
-        dict: GPT v2.3.2 verbose format
+        dict: GPT-optimized format for astrocartography region analysis
     """
     formatter = GPTFormatter()
-    return formatter.format_comprehensive_calculation(natal_data, transit_data, request_metadata)
+    return formatter.format_highlight_summary_for_gpt(highlight_summary, natal_data, request_metadata)
+
+# Additional convenience functions for API compatibility
+def format_for_gpt(natal_data, transit_data, request_data):
+    """
+    Convenience function to format both natal and transit data for GPT analysis
+    
+    Args:
+        natal_data (dict): Natal chart data
+        transit_data (dict): Transit chart data
+        request_data (dict): Original request parameters
+        
+    Returns:
+        dict: GPT-optimized format combining natal and transit analysis
+    """
+    formatter = GPTFormatter()
+    return formatter.format_for_gpt(natal_data, transit_data, request_data)
+
+
+def format_natal_only(natal_data, request_data):
+    """
+    Convenience function to format only natal data for GPT analysis
+    
+    Args:
+        natal_data (dict): Natal chart data
+        request_data (dict): Original request parameters
+        
+    Returns:
+        dict: GPT-optimized format for natal-only analysis
+    """
+    formatter = GPTFormatter()
+    return formatter.format_natal_only(natal_data, request_data)
+
+
+def format_with_transits(natal_data, transit_data, request_data):
+    """
+    Convenience function to format natal data with current transits for GPT analysis
+    
+    Args:
+        natal_data (dict): Natal chart data
+        transit_data (dict): Current transit data
+        request_data (dict): Original request parameters
+        
+    Returns:
+        dict: GPT-optimized format with transit analysis
+    """
+    formatter = GPTFormatter()
+    return formatter.format_with_transits(natal_data, transit_data, request_data)

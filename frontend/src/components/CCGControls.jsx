@@ -50,43 +50,46 @@ function CCGControls({
       </div>
 
       {/* Feature Type Toggles - Only show when CCG layer is visible */}
-      {layerManager.isLayerVisible('CCG') && (
-        <>
-          <div style={{ borderTop: '1px solid #555', paddingTop: '0.5rem' }}>
-            <h4 style={{ color: '#fff', textAlign: 'center', margin: '0 0 0.5rem 0', fontSize: '0.8rem' }}>
-              Feature Types
-            </h4>
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.4rem',
-              justifyContent: 'center',
-              marginBottom: '0.75rem'
-            }}>              <label
-                className={`category-toggle ${lineToggles.ic_mc ? 'active' : 'inactive'}`}
-                style={{ minWidth: '90px', fontSize: '12px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
-              >                <input
-                  type="checkbox"
-                  checked={lineToggles.ic_mc}
-                  onChange={() => {
-                    setLineToggles(prev => ({ ...prev, ic_mc: !prev.ic_mc }));
-                    forceMapUpdate();
-                  }}
-                  style={{
-                    marginRight: 5,
-                    transform: 'scale(0.9)',
-                    accentColor: '#4A90E2'
-                  }}
-                />
-                IC/MC Lines
-              </label>
-              <label
-                className={`category-toggle ${lineToggles.ac_dc ? 'active' : 'inactive'}`}
-                style={{ minWidth: '90px', fontSize: '12px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
-              >                <input
-                  type="checkbox"
-                  checked={lineToggles.ac_dc}
-                  onChange={() => {
+        {layerManager.isLayerVisible('CCG') && (
+          <>
+            <div style={{ borderTop: '1px solid #555', paddingTop: '0.5rem' }}>
+          <h4 style={{ color: '#fff', textAlign: 'center', margin: '0 0 0.5rem 0', fontSize: '0.8rem' }}>
+            Feature Types
+          </h4>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.4rem',
+            justifyContent: 'center',
+            marginBottom: '0.75rem'
+          }}>
+            <label
+              className={`category-toggle ${lineToggles.ic_mc ? 'active' : 'inactive'}`}
+              style={{ minWidth: '90px', fontSize: '12px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+            >
+              <input
+            type="checkbox"
+            checked={lineToggles.ic_mc}
+            onChange={() => {
+              setLineToggles(prev => ({ ...prev, ic_mc: !prev.ic_mc }));
+              forceMapUpdate();
+            }}
+            style={{
+              marginRight: 5,
+              transform: 'scale(0.9)',
+              accentColor: '#4A90E2'
+            }}
+              />
+              IC/MC Lines
+            </label>
+            <label
+              className={`category-toggle ${lineToggles.ac_dc ? 'active' : 'inactive'}`}
+              style={{ minWidth: '90px', fontSize: '12px', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+            >
+              <input
+            type="checkbox"
+            checked={lineToggles.ac_dc}
+            onChange={() => {
                     setLineToggles(prev => ({ ...prev, ac_dc: !prev.ac_dc }));
                     forceMapUpdate();
                   }}

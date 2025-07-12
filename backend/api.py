@@ -15,7 +15,7 @@ from ephemeris import calculate_chart
 from chart_renderer import generate_chart_svg
 from astrocartography import calculate_astrocartography_lines_geojson
 from location_utils import get_location_suggestions, detect_timezone_from_coordinates
-from gpt_formatter import format_for_gpt, format_natal_only, format_with_transits
+from gpt_formatter import format_for_gpt, format_natal_only, format_with_transits, GPTFormatter, format_highlight_summary_for_gpt
 from house_systems import (
     get_house_system_choices, get_default_house_system, 
     get_recommended_house_systems, get_house_systems_by_category,
@@ -681,6 +681,38 @@ def api_gpt_with_transits():
         
     except Exception as e:
         app.logger.error(f"GPT with transits error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/gpt/highlight-summary', methods=['POST'])
+def api_gpt_highlight_summary():
+    """
+    GPT endpoint: Format highlight summary (astrocartography region) for GPT analysis
+    Takes highlight circle data and returns GPT-optimized regional analysis
+    """
+    try:
+        data = request.get_json(force=True)
+        app.logger.info("▶️  /api/gpt/highlight-summary")
+        
+        # Validate highlight summary data
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        highlight_summary = data
+        natal_data = data.get('natal_data')
+        request_metadata = data.get('request_metadata', {})
+        
+        # Format highlight summary for GPT
+        formatter = GPTFormatter()
+        gpt_formatted = formatter.format_highlight_summary_for_gpt(
+            highlight_summary=highlight_summary,
+            natal_data=natal_data,
+            request_metadata=request_metadata
+        )
+        
+        return jsonify(gpt_formatted)
+        
+    except Exception as e:
+        app.logger.error(f"GPT highlight summary error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

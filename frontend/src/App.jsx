@@ -461,6 +461,8 @@ function App() {
 
   // Highlight summary state (for GPT integration)
   const [highlightSummary, setHighlightSummary] = useState(null);
+  const [highlightGptData, setHighlightGptData] = useState(null);
+  const [showHighlightGptJson, setShowHighlightGptJson] = useState(false);
 
   // Handle GPT format generation
   const handleGptFormat = async () => {
@@ -513,6 +515,68 @@ function App() {
       alert(`Failed to format data for GPT: ${error.message}`);
     }
   };
+
+  // Handle highlight summary GPT formatting
+  const handleHighlightSummaryGpt = React.useCallback(async (summary) => {
+    if (!summary || !summary.features || summary.features.length === 0) {
+      console.log('No highlight summary features to send to GPT');
+      return;
+    }
+
+    try {
+      console.log('Sending highlight summary to GPT formatter:', summary);
+      
+      // Prepare the payload with natal data for context
+      const payload = {
+        ...summary,
+        natal_data: response, // Include natal chart data for context
+        request_metadata: {
+          birth_date: formData.birth_date,
+          birth_time: formData.birth_time,
+          birth_city: formData.birth_city,
+          birth_state: formData.birth_state,
+          birth_country: formData.birth_country,
+          timezone: formData.timezone,
+          house_system: formData.house_system || 'whole_sign',
+          coordinates: formData.coordinates
+        }
+      };
+
+      const gptResponse = await fetch('/api/gpt/highlight-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!gptResponse.ok) {
+        const errorText = await gptResponse.text();
+        throw new Error(`Highlight summary GPT formatting failed: ${gptResponse.status} - ${errorText}`);
+      }
+
+      const gptResult = await gptResponse.json();
+      console.log('Highlight summary GPT formatted data:', gptResult);
+      
+      setHighlightGptData(gptResult);
+      
+    } catch (error) {
+      console.error('Error formatting highlight summary for GPT:', error);
+      // Don't show alert for this, just log it
+    }
+  }, [response, formData]);
+
+  // Enhanced setHighlightSummary that also sends to GPT
+  const handleHighlightSummaryChange = React.useCallback((summary) => {
+    setHighlightSummary(summary);
+    
+    // Automatically send to GPT formatter when highlight summary changes
+    if (summary && summary.features && summary.features.length > 0) {
+      handleHighlightSummaryGpt(summary);
+    } else {
+      setHighlightGptData(null);
+    }
+  }, [handleHighlightSummaryGpt]);
 
   // Merged/filtered data for map
   const mergedFilteredData = React.useMemo(() => {
@@ -796,6 +860,15 @@ function App() {
           >
             {showGptJson ? 'Hide' : 'Show'} GPT Format
           </button>
+          {highlightGptData && (
+            <button
+              onClick={() => setShowHighlightGptJson(prev => !prev)}
+              className="json-button highlight-gpt-button"
+              title="Show GPT analysis of highlighted region"
+            >
+              {showHighlightGptJson ? 'Hide' : 'Show'} Region Analysis
+            </button>
+          )}
         </div>
       )}
       {/* JSON output blocks */}
@@ -854,6 +927,34 @@ function App() {
             border: '1px solid #2d8659'
           }}>
             {JSON.stringify(gptData, null, 2)}
+          </pre>
+        </div>
+      )}
+      {showHighlightGptJson && highlightGptData && (
+        <div style={{ margin: '0 auto 0.5rem auto', width: '95%' }}>
+          <div style={{
+            background: '#2d4a6b',
+            color: '#fff',
+            padding: '8px 12px',
+            borderRadius: '4px 4px 0 0',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            borderBottom: '2px solid #5a8bc4'
+          }}>
+            🗺️ Regional Astrocartography Analysis (GPT-Ready)
+          </div>
+          <pre style={{
+            maxHeight: 400,
+            overflow: 'auto',
+            background: '#1e3a52',
+            color: '#b8d4f0',
+            padding: 12,
+            borderRadius: '0 0 4px 4px',
+            fontSize: 11,
+            margin: 0,
+            border: '1px solid #5a8bc4'
+          }}>
+            {JSON.stringify(highlightGptData, null, 2)}
           </pre>
         </div>
       )}
@@ -1059,7 +1160,7 @@ function App() {
           <div className="map-container" style={{ width: '100%', marginBottom: '1rem' }}>
             <AstroMap 
               data={mergedFilteredData} 
-              onHighlightSummary={setHighlightSummary}
+              onHighlightSummary={handleHighlightSummaryChange}
               birthCoordinates={response?.coordinates}
             />
           </div>
