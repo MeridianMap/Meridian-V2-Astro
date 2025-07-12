@@ -177,29 +177,95 @@ function getFeaturesWithinCircle(center, radius, features) {
     let minDist = Infinity;
     let intersects = false;
     
-    if (feat.geometry.type === "Point") {
-      const [lon, lat] = feat.geometry.coordinates;
-      const pt = L.latLng(lat, lon);
-      minDist = centerLatLng.distanceTo(pt);
-      intersects = minDist <= radius;
-    } else if (feat.geometry.type === "LineString") {
-      // Check all points on the line
-      feat.geometry.coordinates.forEach(([lon, lat]) => {
-        const pt = L.latLng(lat, lon);
-        const dist = centerLatLng.distanceTo(pt);
-        if (dist < minDist) minDist = dist;
-        if (dist <= radius) intersects = true;
-      });
-    } else if (feat.geometry.type === "MultiLineString") {
-      // Check all points on all lines
-      feat.geometry.coordinates.forEach(line =>
-        line.forEach(([lon, lat]) => {
+    try {
+      if (feat.geometry.type === "Point") {
+        const [lon, lat] = feat.geometry.coordinates;
+        if (typeof lon === 'number' && typeof lat === 'number') {
           const pt = L.latLng(lat, lon);
-          const dist = centerLatLng.distanceTo(pt);
-          if (dist < minDist) minDist = dist;
-          if (dist <= radius) intersects = true;
-        })
-      );
+          minDist = centerLatLng.distanceTo(pt);
+          intersects = minDist <= radius;
+        }
+      } else if (feat.geometry.type === "LineString") {
+        // Validate coordinates array
+        if (Array.isArray(feat.geometry.coordinates) && feat.geometry.coordinates.length >= 2) {
+          // Use Leaflet-based line-circle intersection detection
+          feat.geometry.coordinates.forEach(([lon, lat]) => {
+            if (typeof lon === 'number' && typeof lat === 'number') {
+              const pt = L.latLng(lat, lon);
+              const dist = centerLatLng.distanceTo(pt);
+              if (dist < minDist) minDist = dist;
+              if (dist <= radius) intersects = true;
+            }
+          });
+          
+          // Enhanced line-circle intersection: check if line segment crosses circle
+          if (!intersects) {
+            for (let i = 0; i < feat.geometry.coordinates.length - 1; i++) {
+              const [lon1, lat1] = feat.geometry.coordinates[i];
+              const [lon2, lat2] = feat.geometry.coordinates[i + 1];
+              
+              if (typeof lon1 === 'number' && typeof lat1 === 'number' && 
+                  typeof lon2 === 'number' && typeof lat2 === 'number') {
+                // Simple line-circle intersection check
+                const segmentIntersects = lineSegmentIntersectsCircle(
+                  [lat1, lon1], [lat2, lon2], center, radius
+                );
+                if (segmentIntersects) {
+                  intersects = true;
+                  // Calculate approximate distance to segment
+                  const midLat = (lat1 + lat2) / 2;
+                  const midLon = (lon1 + lon2) / 2;
+                  const midDist = centerLatLng.distanceTo(L.latLng(midLat, midLon));
+                  if (midDist < minDist) minDist = midDist;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } else if (feat.geometry.type === "MultiLineString") {
+        // Check all lines in the multiline
+        if (Array.isArray(feat.geometry.coordinates)) {
+          feat.geometry.coordinates.forEach(line => {
+            if (Array.isArray(line) && line.length >= 2) {
+              line.forEach(([lon, lat]) => {
+                if (typeof lon === 'number' && typeof lat === 'number') {
+                  const pt = L.latLng(lat, lon);
+                  const dist = centerLatLng.distanceTo(pt);
+                  if (dist < minDist) minDist = dist;
+                  if (dist <= radius) intersects = true;
+                }
+              });
+              
+              // Enhanced line-circle intersection for each line segment
+              if (!intersects) {
+                for (let i = 0; i < line.length - 1; i++) {
+                  const [lon1, lat1] = line[i];
+                  const [lon2, lat2] = line[i + 1];
+                  
+                  if (typeof lon1 === 'number' && typeof lat1 === 'number' && 
+                      typeof lon2 === 'number' && typeof lat2 === 'number') {
+                    const segmentIntersects = lineSegmentIntersectsCircle(
+                      [lat1, lon1], [lat2, lon2], center, radius
+                    );
+                    if (segmentIntersects) {
+                      intersects = true;
+                      const midLat = (lat1 + lat2) / 2;
+                      const midLon = (lon1 + lon2) / 2;
+                      const midDist = centerLatLng.distanceTo(L.latLng(midLat, midLon));
+                      if (midDist < minDist) minDist = midDist;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.warn(`Error processing feature ${index}:`, error.message, feat);
+      return; // Skip this feature
     }
     
     if (intersects) {
@@ -221,6 +287,47 @@ function getFeaturesWithinCircle(center, radius, features) {
   results.sort((a, b) => a.distance - b.distance);
   console.log(`🎯 Found ${results.length} features within circle`);
   return results;
+}
+
+// Helper function to check if a line segment intersects with a circle
+function lineSegmentIntersectsCircle(point1, point2, circleCenter, circleRadius) {
+  const [lat1, lon1] = point1;
+  const [lat2, lon2] = point2;
+  const [centerLat, centerLon] = circleCenter;
+  
+  // Convert to Leaflet LatLng objects for distance calculations
+  const p1 = L.latLng(lat1, lon1);
+  const p2 = L.latLng(lat2, lon2);
+  const center = L.latLng(centerLat, centerLon);
+  
+  // Check if either endpoint is within the circle
+  if (center.distanceTo(p1) <= circleRadius || center.distanceTo(p2) <= circleRadius) {
+    return true;
+  }
+  
+  // Calculate the closest point on the line segment to the circle center
+  const A = centerLat - lat1;
+  const B = centerLon - lon1;
+  const C = lat2 - lat1;
+  const D = lon2 - lon1;
+  
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+  
+  if (lenSq === 0) return false; // Line segment is actually a point
+  
+  let param = dot / lenSq;
+  
+  // Clamp to line segment
+  if (param < 0) param = 0;
+  else if (param > 1) param = 1;
+  
+  const closestLat = lat1 + param * C;
+  const closestLon = lon1 + param * D;
+  const closestPoint = L.latLng(closestLat, closestLon);
+  
+  // Check if the closest point is within the circle
+  return center.distanceTo(closestPoint) <= circleRadius;
 }
 
 const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) => {
@@ -301,8 +408,8 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
     // Only set default if no circle exists
     if (!highlightCircle) {
       setLoadingStage('Generating random location...');
-      // Generate random latitude and longitude
-      const randomLat = (Math.random() * 180 - 90).toFixed(4); // Latitude between -90 and 90
+      // Generate random latitude and longitude with modest latitude limits
+      const randomLat = (Math.random() * 120 - 60).toFixed(4); // Latitude between -60 and 60
       const randomLon = (Math.random() * 360 - 180).toFixed(4); // Longitude between -180 and 180
 
       const defaultCircle = {
@@ -317,114 +424,78 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run once on mount
-  
   // Show map even if no features - just empty map
   if (!data) return <div>Loading astrocartography data…</div>;
 
   return (
     <div className="astromap-wrapper" style={{ position: 'relative' }}>
       {/* Loading overlay */}
-      {isMapLoading && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 2000,
-          color: '#fff'
-        }}>
-          <div className="loading-spinner"></div>
-          <div style={{ 
-            fontSize: '18px', 
-            fontWeight: '600',
-            marginBottom: '8px'
+        {isMapLoading && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            color: '#fff'
           }}>
-            Loading Astrocartography Map
+            <div className="loading-spinner"></div>
+            <div style={{ 
+          fontSize: '18px', 
+          fontWeight: '600',
+          marginBottom: '8px'
+            }}>
+          Loading Astrocartography Map
+            </div>
+            <div style={{ 
+          fontSize: '14px', 
+          opacity: 0.8 
+            }}>
+          {loadingStage}
+            </div>
           </div>
-          <div style={{ 
-            fontSize: '14px', 
-            opacity: 0.8 
-          }}>
-            {loadingStage}
-          </div>
-        </div>
-      )}
-      {/* Accordion button for JSON output - removed, now handled in App.jsx */}
-      {/*
-      <div style={{ margin: '12px 0' }}>
-        <button
-          onClick={() => setShowJson((v) => !v)}
-          style={{
-            padding: '6px 14px',
-            borderRadius: 4,
-            border: '1px solid #aaa',
-            background: '#222', // Changed to dark background
-            color: '#fff', // Ensure text is white
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginBottom: 6,
-          }}
-        >
-          {showJson ? 'Hide' : 'Show'} Astrocartography JSON Output
-        </button>
-        {showJson && (
-          <pre
-            style={{
-              maxHeight: 400,
-              overflow: 'auto',
-              background: '#222',
-              color: '#fff',
-              padding: 12,
-              borderRadius: 4,
-              fontSize: 13,
-              marginTop: 0,
-            }}
-          >
-            {JSON.stringify(data, null, 2)}
-          </pre>
         )}
-      </div>
-      */}      {/* Add clear circle button */}
-      {highlightCircle && (
-        <div style={{ 
-          position: 'absolute', 
-          top: '10px', 
-          right: '10px', 
-          zIndex: 1000,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-        }}>
-          <button
-            onClick={() => setHighlightCircle(null)}
-            style={{
-              padding: '4px 8px',
-              fontSize: '12px',
-              border: '1px solid #ccc',
-              borderRadius: '3px',
-              backgroundColor: '#fff',
-              cursor: 'pointer'
-            }}
-          >
-            Clear Circle
-          </button>
-        </div>
-      )}
-      {highlightSummary && (
-        <div
+        {/* Add clear circle button */}
+        {highlightCircle && (
+          <div style={{ 
+            position: 'absolute', 
+            top: '10px', 
+            right: '10px', 
+            zIndex: 1000,
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}>
+            <button
+          onClick={() => setHighlightCircle(null)}
           style={{
-            position: "absolute",
-            left: "30px",
-            top: "60px",
-            zIndex: 1100,
-            background: "#23272f", // dark background for readability
+            padding: '4px 8px',
+            fontSize: '12px',
+            border: '1px solid #ccc',
+            borderRadius: '3px',
+            backgroundColor: '#fff',
+            cursor: 'pointer'
+          }}
+            >
+          Clear Circle
+            </button>
+          </div>
+        )}
+        {highlightSummary && (
+          <div
+            style={{
+          position: "absolute",
+          left: "30px",
+          top: "60px",
+          zIndex: 1100,
+          background: "#23272f", // dark background for readability
             border: "1px solid #444",
             borderRadius: 8,
             padding: "18px 22px",
@@ -559,26 +630,7 @@ const AstroMap = ({ data, paransData, onHighlightSummary, birthCoordinates }) =>
             ]);
           }
           // Removed duplicate rendering for parans lines by type
-          // else if (feat.geometry.type === "LineString" && feat.properties.type === "paran") {
-          //   const rawCoords = feat.geometry.coordinates;
-          //   let planet = feat.properties.planet;
-          //   if (typeof planet === 'string') planet = planet.trim();
-          //   const color = "purple"; // or any color you want for parans
-          //   const weight = 4;
-          //   const dashArray = "6 6";
-          //   const label = `${planet} Paran (${feat.properties.event})`;
-          //   return [0, 360, -360].map((offset) => (
-          //     <Polyline
-          //       key={`paran-${idx}-${offset}`}
-          //       positions={rawCoords.map(([lon, lat]) => [lat, lon + offset])}
-          //       color={color}
-          //       weight={weight}
-          //       dashArray={dashArray}
-          //       smoothFactor={1}
-          //     >
-          //       <Tooltip sticky>{label}</Tooltip>
-          //     </Polyline>
-          //   ));
+
           // }
           else if (
             (feat.geometry.type === "LineString" || feat.geometry.type === "MultiLineString") &&
